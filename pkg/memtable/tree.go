@@ -84,7 +84,7 @@ func (t *BalancedTree) Available() uint64 {
 
 func (t *BalancedTree) Sorted() iter.Seq2[[]byte, []byte] {
 	return func(yield func([]byte, []byte) bool) {
-		n := &t.root
+		n := t.root
 		for {
 			if !yield((*n).key, (*n).value) {
 				return
