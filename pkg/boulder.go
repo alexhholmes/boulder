@@ -9,7 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"boulder/pkg/batchmanager"
+	"boulder/pkg/lsm"
+	"boulder/pkg/manifest"
 	"boulder/pkg/memtable"
+	"boulder/pkg/wal"
 )
 
 const (
@@ -26,7 +30,11 @@ type DB struct {
 	session  string
 	openedAt time.Time
 
+	batch    *batchmanager.BatchManager
+	manifest *manifest.Manifest
 	memtable *memtable.MemTable
+	lsm      *lsm.LSM
+	wal      *wal.WriteAheadLog
 
 	dataDirectory *os.File
 	walDirectory  *os.File
@@ -102,8 +110,8 @@ func Open(directory string, options ...Option) (db *DB, err error) {
 	return db, nil
 }
 
-func (b *DB) Get(key []byte) (value []byte, closer io.Closer, err error) {
-	value, finish, ok := b.memtable.Get(key)
+func (db *DB) Get(key []byte) (value []byte, closer io.Closer, err error) {
+	value, finish, ok := db.memtable.Get(key)
 	if !ok {
 		return nil, nil, ErrNotFound
 	}
@@ -111,29 +119,29 @@ func (b *DB) Get(key []byte) (value []byte, closer io.Closer, err error) {
 	return value, Close(func() { finish() }), nil
 }
 
-func (b *DB) Set(key, value []byte) error {
-	b.memtable.Set(key, value)
+func (db *DB) Set(key, value []byte) error {
+	db.memtable.Set(key, value)
 	return nil
 }
 
-func (b *DB) Delete(key []byte) error {
-	b.memtable.Delete(key)
+func (db *DB) Delete(key []byte) error {
+	db.memtable.Delete(key)
 	return nil
 }
 
-func (b *DB) DeleteRange(start, end []byte) error {
-	b.memtable.DeleteRange(start, end)
+func (db *DB) DeleteRange(start, end []byte) error {
+	db.memtable.DeleteRange(start, end)
 	return nil
 }
 
 // Close is a blocking call that will wait until all pending writes and
 // compactions are finished before safely closing the DB.
-func (b *DB) Close() error {
+func (db *DB) Close() error {
 	var errs []error
-	if err := b.dataDirectory.Close(); err != nil {
+	if err := db.dataDirectory.Close(); err != nil {
 		errs = append(errs, fmt.Errorf("failed to close data directory: %w", err))
 	}
-	if err := b.walDirectory.Close(); err != nil {
+	if err := db.walDirectory.Close(); err != nil {
 		errs = append(errs, fmt.Errorf("failed to close wal directory: %w", err))
 	}
 
