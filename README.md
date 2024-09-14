@@ -5,4 +5,6 @@ This is created as a learning project.
 
 _It's not just a boulder! It's a rock!_
 
-![rock](https://github.com/user-attachments/assets/59ee9e19-14b0-4a95-aa85-acfb8c025eac)
+<p align="center" alt="rock" width="200">
+  <img src="https://github.com/user-attachments/assets/59ee9e19-14b0-4a95-aa85-acfb8c025eac" />
+</p>
