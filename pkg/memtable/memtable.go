@@ -52,11 +52,12 @@ func (m *MemTable) Set(key, value []byte) {
 	m.tree.Insert(key, value)
 }
 
-func (m *MemTable) Get(key []byte) ([]byte, bool) {
+func (m *MemTable) Get(key []byte) ([]byte, func(), bool) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 
-	return m.tree.Get(key)
+	val, ok := m.tree.Get(key)
+
+	return val, func() { m.mu.RUnlock() }, ok
 }
 
 func (m *MemTable) Delete(key []byte) {

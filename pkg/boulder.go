@@ -6,9 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
+
+	"boulder/pkg/memtable"
 )
 
 const (
@@ -21,11 +22,11 @@ var (
 )
 
 type DB struct {
-	mu       sync.RWMutex
 	name     string
 	session  string
 	openedAt time.Time
-	db       map[string][]byte
+
+	memtable *memtable.MemTable
 
 	dataDirectory *os.File
 	walDirectory  *os.File
@@ -88,6 +89,7 @@ func Open(directory string, options ...Option) (db *DB, err error) {
 
 	db.dataDirectory = dataDirectory
 	db.walDirectory = walDirectory
+	db.memtable = memtable.NewMemTable(make(chan<- memtable.Flush)) // TODO replace with real flusher channel
 	db.openedAt = time.Now()
 
 	// Attempt to close resources on panic
@@ -101,32 +103,27 @@ func Open(directory string, options ...Option) (db *DB, err error) {
 }
 
 func (b *DB) Get(key []byte) (value []byte, closer io.Closer, err error) {
-	b.mu.RLock()
-
-	value, ok := b.db[string(key)]
+	value, finish, ok := b.memtable.Get(key)
 	if !ok {
 		return nil, nil, ErrNotFound
 	}
 
-	return value, Close(func() { b.mu.RUnlock() }), nil
+	return value, Close(func() { finish() }), nil
 }
 
 func (b *DB) Set(key, value []byte) error {
-	// TODO implement me
-	panic("implement me")
+	b.memtable.Set(key, value)
+	return nil
 }
 
 func (b *DB) Delete(key []byte) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	delete(b.db, string(key))
+	b.memtable.Delete(key)
 	return nil
 }
 
 func (b *DB) DeleteRange(start, end []byte) error {
-	// TODO implement me
-	panic("implement me")
+	b.memtable.DeleteRange(start, end)
+	return nil
 }
 
 // Close is a blocking call that will wait until all pending writes and
