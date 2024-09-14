@@ -5,7 +5,7 @@ import (
 	"iter"
 )
 
-// BalancedTree is a black-red tree implementation of the Tree interface.
+// BalancedTree is a concurrent, sorted black-red tree implementation.
 type BalancedTree struct {
 	buffer  []node
 	size    uint64

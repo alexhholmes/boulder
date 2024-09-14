@@ -17,6 +17,8 @@ type MemTable struct {
 	flush    chan<- Flush
 }
 
+// NewMemTable returns a new MemTable with the given flush channel. The flush
+// is created and consumed by the lsm manager.
 func NewMemTable(flush chan<- Flush) *MemTable {
 	m := &MemTable{
 		tree:  NewBalancedTree(4096 * 4),
@@ -68,10 +70,9 @@ func (m *MemTable) Delete(key []byte) {
 	m.tree.Delete(key)
 }
 
-func (m *MemTable) DeleteRange(start, end []byte) error {
+func (m *MemTable) DeleteRange(start, end []byte) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-
 }
 
 // Flush writes the contents of the MemTable to the given writer then creates
@@ -88,6 +89,7 @@ func (m *MemTable) write(w io.Writer, flushed <-chan struct{}) {
 	old := m.tree
 	m.dead[old] = struct{}{}
 	m.tree = NewBalancedTree(4096 * 4)
+
 	m.mu.Unlock()
 
 	go func() {
