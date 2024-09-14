@@ -115,3 +115,13 @@ func (m *MemTable) write(w io.Writer, flushed <-chan struct{}) {
 func (m *MemTable) Size() uint64 {
 	return m.tree.size
 }
+
+var _ io.Closer = (*MemTable)(nil)
+
+// Close is called to flush the contents of the memory table to disk. It is
+// up to the caller to close this before closing the owning LSM. The close
+// call on the LSM will wait for all pending writes to finish before closing.
+func (m *MemTable) Close() error {
+	m.Flush()
+	return nil
+}
