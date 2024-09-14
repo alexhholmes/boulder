@@ -16,13 +16,15 @@ type BalancedTree struct {
 
 // NewBalancedTree returns a new BalancedTree with the given available size
 // in bytes.
-func NewBalancedTree(size uint64) BalancedTree {
-	t := BalancedTree{
+func NewBalancedTree(size uint64) *BalancedTree {
+	return &BalancedTree{
 		buffer:  make([]node, max(4096, size*2)),
 		maxSize: size,
 	}
+}
 
-	return t
+func (t *BalancedTree) Get(key []byte) ([]byte, bool) {
+	return nil, false
 }
 
 func (t *BalancedTree) Insert(key, value []byte) {

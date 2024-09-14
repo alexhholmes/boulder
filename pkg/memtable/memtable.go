@@ -1,43 +1,76 @@
 package memtable
 
 import (
-	"errors"
 	"io"
+	"sync"
 )
 
-var ErrMemTableFull = errors.New("memtable is full")
-
-type Flush func(w io.Writer)
+type Flush func(w io.Writer, flushed <-chan struct{})
 
 // MemTable is a memory table that stores key-value pairs in sorted order
 // using a red-black tree.
 type MemTable struct {
-	tree  BalancedTree
-	flush chan<- Flush
+	mu       sync.RWMutex
+	tree     *BalancedTree
+	dead     map[*BalancedTree]struct{}
+	deadChan chan<- *BalancedTree
+	flush    chan<- Flush
 }
 
-func NewMemTable(flush chan<- Flush) MemTable {
-	return MemTable{
+func NewMemTable(flush chan<- Flush) *MemTable {
+	m := &MemTable{
 		tree:  NewBalancedTree(4096 * 4),
+		dead:  make(map[*BalancedTree]struct{}, 64),
 		flush: flush,
 	}
+
+	// The dead channel is used to signal when a tree has been fully
+	// written to disk and can be removed from the dead map.
+	deadChan := make(chan *BalancedTree)
+	m.deadChan = deadChan
+	go func() {
+		select {
+		case d := <-deadChan:
+			m.mu.Lock()
+			delete(m.dead, d)
+			m.mu.Unlock()
+		}
+	}()
+
+	return m
 }
 
-func (m *MemTable) Set(key, value []byte) error {
+func (m *MemTable) Set(key, value []byte) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if m.tree.WillOverflow(key, value) {
+		m.Flush()
+	}
+	m.tree.Insert(key, value)
+}
+
+func (m *MemTable) Get(key []byte) ([]byte, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.tree.Get(key)
+}
+
+func (m *MemTable) Delete(key []byte) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.tree.WillOverflow(key, nil) {
+		m.Flush()
 	}
 
-}
-
-func (m *MemTable) Get(key []byte) ([]byte, error) {
-
-}
-
-func (m *MemTable) Delete(key []byte) error {
-
+	m.tree.Delete(key)
 }
 
 func (m *MemTable) DeleteRange(start, end []byte) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 }
 
@@ -47,15 +80,34 @@ func (m *MemTable) Flush() {
 	m.flush <- m.write
 }
 
-func (m *MemTable) write(w io.Writer) {
-	// The underlying writer managed by lsm will copy the writes to a
-	// directio aligned buffer and write to disk in chunks. It will also
-	// keep track of the length of padding at the end of the buffer block
-	// written. This writer will never return an error.
-	for key, val := range m.tree.Sorted() {
-		_, _ = w.Write(key)
-		_, _ = w.Write(val)
-	}
+func (m *MemTable) write(w io.Writer, flushed <-chan struct{}) {
+	m.mu.Lock()
+
+	// Keep a reference to the old tree so we can write its contents to disk
+	// and create a new tree.
+	old := m.tree
+	m.dead[old] = struct{}{}
+	m.tree = NewBalancedTree(4096 * 4)
+	m.mu.Unlock()
+
+	go func() {
+		// The underlying writer managed by lsm will copy the writes to a
+		// directio aligned buffer and write to disk in chunks. It will also
+		// keep track of the length of padding at the end of the buffer block
+		// written. This writer will never return an error.
+		//
+		// The lsm manager will also do additional bookkeeping to create indexes,
+		// bloom filters, and other metadata.
+		for key, val := range old.Sorted() {
+			_, _ = w.Write(key)
+			_, _ = w.Write(val)
+		}
+	}()
+
+	// Once the write is flushed to disk, we can signal that the tree stump
+	// can be dug up from the dead map.
+	<-flushed
+	m.deadChan <- old
 }
 
 func (m *MemTable) Size() uint64 {
