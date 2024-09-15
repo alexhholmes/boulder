@@ -8,18 +8,29 @@ import (
 	"github.com/ncw/directio"
 )
 
+type Option func(*Writer)
+
 // Writer is a wrapper around `directio.File`. This will write data to the file
 // in multiples of the block size. If there is any data that is not a multiple
 // of the block size, it will be written to the file in the next block with
 // padding.
 type Writer struct {
-	file  *os.File
-	block int
+	file   *os.File
+	block  int
+	wg     *sync.WaitGroup
+	done   chan struct{}
+	writer chan []byte
 }
 
 var once sync.Once
 
-func NewWriter(name string, flag int) (*Writer, error) {
+func NewWriter(name string, flag int, options ...Option) (*Writer, error) {
+	w := new(Writer)
+
+	for _, option := range options {
+		option(w)
+	}
+
 	file, err := directio.OpenFile(name, flag, 0755)
 	if err != nil {
 		return nil, err
@@ -30,10 +41,36 @@ func NewWriter(name string, flag int) (*Writer, error) {
 		block = len(directio.AlignedBlock(directio.BlockSize))
 	})
 
-	return &Writer{
-		file:  file,
-		block: block,
-	}, nil
+	var wg sync.WaitGroup
+	done := make(chan struct{}, 1)
+	writer := make(chan []byte, 1)
+
+	wg.Add(1)
+	go func() {
+		for {
+			select {
+			case buf := <-writer:
+				_, err := w.write(buf)
+			case <-done:
+				wg.Done()
+				return
+			case <-done:
+			}
+
+		}
+	}()
+
+	w.file = file
+	w.block = block
+	w.wg = &wg
+	w.done = done
+	w.writer = writer
+
+	return w, nil
+}
+
+func (f *Writer) write(buf []byte) (n int, err error) {
+
 }
 
 var _ io.WriteCloser = (*Writer)(nil)
@@ -79,5 +116,7 @@ func (f *Writer) Write(buf []byte) (n int, err error) {
 }
 
 func (f *Writer) Close() error {
+	f.done <- struct{}{}
+	f.wg.Wait()
 	return f.file.Close()
 }
