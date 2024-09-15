@@ -1,6 +1,6 @@
 //go:build 386 || arm
 
-package types
+package base
 
 import "sync/atomic"
 

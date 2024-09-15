@@ -4,15 +4,13 @@ import (
 	"errors"
 	"unsafe"
 
-	"boulder/internal/util/types"
+	"boulder/internal/base"
 )
-
-const NodeAlignment = 4
 
 var ErrArenaFull = errors.New("allocation failed because arena is full")
 
 type Arena struct {
-	n   types.AtomicInt
+	n   base.AtomicInt
 	buf []byte
 }
 
