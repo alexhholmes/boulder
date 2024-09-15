@@ -1,4 +1,4 @@
-package memtable
+package skiplist
 
 type SkipList struct {
 }

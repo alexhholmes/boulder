@@ -4,17 +4,18 @@ import (
 	"io"
 	"sync"
 
+	skiplist2 "boulder/internal/memtable/skiplist"
 	"boulder/internal/wal"
 )
 
-type Flush func(w io.Writer, flushed <-chan struct{})
+type Flush func(w io.Writer, flushed sync.WaitGroup)
 
 // MemTable is a memory table that stores key-value pairs in sorted order
 // using a red-black tree.
 type MemTable struct {
 	mu       sync.RWMutex
 	wal      *wal.WriteAheadLog
-	skiplist *SkipList
+	skiplist *skiplist2.SkipList
 	dead     map[*BalancedTree]struct{}
 	deadChan chan<- *BalancedTree
 	flush    chan<- Flush
