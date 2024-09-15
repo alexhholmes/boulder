@@ -1,5 +1,8 @@
 package storage
 
+// Note, storage is only used for directio writing. Manfiest and other metadata
+// files can skip this and use the standard library for writing.
+
 // TODO
 // Storage will be a wrapper around a directio file. It will perform the necessary
 // buffer copying to buffers of the right block size.
