@@ -28,13 +28,13 @@ func NewSSTable(filename string, id, level uint64, reader io.Reader) (*SSTable, 
 	// Open the file and write the contents of the reader to it
 	file, err := directio.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0755)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open new sstable file: %w", err)
+		return nil, fmt.Errorf("failed to open new lsm file: %w", err)
 	}
 
 	// Copy the contents of the reader to the file
 	_, err = io.Copy(file, reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to copy to new sstable: %w", err)
+		return nil, fmt.Errorf("failed to copy to new lsm: %w", err)
 	}
 
 	stat, err := file.Stat()
@@ -56,10 +56,10 @@ func (s *SSTable) Level() uint64 {
 }
 
 func (s *SSTable) Read() (reader io.ReadSeeker, close func()) {
-	// Add a latch to the sstable so that we can track the number of readers
-	// when we are compacting the tables and need to delete this sstable once
+	// Add a latch to the lsm so that we can track the number of readers
+	// when we are compacting the tables and need to delete this lsm once
 	// it has been merged. If the latch is non-zero, then a background cleanup
-	// goroutine will eventually delete this sstable once all readers have
+	// goroutine will eventually delete this lsm once all readers have
 	// finished.
 	s.latch.Add(1)
 	return s.file, func() {

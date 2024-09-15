@@ -1,152 +1,42 @@
-package boulder
+package pkg
 
 import (
-	"errors"
-	"fmt"
 	"io"
-	"os"
-	"path/filepath"
-	"syscall"
-	"time"
 
-	"boulder/pkg/batchmanager"
-	"boulder/pkg/lsm"
-	"boulder/pkg/manifest"
-	"boulder/pkg/memtable"
-	"boulder/pkg/wal"
+	"boulder/internal/db"
 )
 
-const (
-	DataDirectoryName = "data"
-	WalDirectoryName  = "wal"
-)
+var _ ReadWriterCloser = (*Boulder)(nil)
 
-var (
-	ErrNotFound = fmt.Errorf("boulder: not found")
-)
-
-type DB struct {
-	name     string
-	session  string
-	openedAt time.Time
-
-	batch    *batchmanager.BatchManager
-	manifest *manifest.Manifest
-	memtable *memtable.MemTable
-	lsm      *lsm.LSM
-	wal      *wal.WriteAheadLog
-
-	dataDirectory *os.File
-	walDirectory  *os.File
+type Boulder struct {
+	db ReadWriterCloser
 }
-
-var _ Reader = (*DB)(nil)
-var _ Writer = (*DB)(nil)
-var _ io.Closer = (*DB)(nil)
 
 // Open opens DB whose files reside in the given directory.
-func Open(directory string, options ...Option) (db *DB, err error) {
-	// Create directories if they don't exist
-	if err = os.MkdirAll(filepath.Join(directory, DataDirectoryName), 0755); err != nil {
-		return nil, fmt.Errorf("failed to create data directory: %w", err)
-	}
-	if err = os.MkdirAll(filepath.Join(directory, WalDirectoryName), 0755); err != nil {
-		return nil, fmt.Errorf("failed to create wal directory: %w", err)
-	}
-
-	// Create lockfile for the directory
-	lockFile, err := os.OpenFile(
-		filepath.Join(directory, "db.lock"),
-		os.O_CREATE|os.O_RDWR,
-		0644,
-	)
+func Open(directory string, options ...Option) (Boulder, error) {
+	database, err := db.Open(directory, options...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create lock file: %w", err)
+		return Boulder{}, err
 	}
-	if err = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
-		return nil, fmt.Errorf("failed to lock directory: %w", err)
-	}
-
-	// Open data and WAL directories
-	dataDirectory, err := os.OpenFile(
-		filepath.Join(directory, DataDirectoryName),
-		os.O_CREATE|os.O_RDWR,
-		0755,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open data directory: %w", err)
-	}
-	defer func() {
-		if db == nil {
-			_ = dataDirectory.Close()
-		}
-	}()
-	walDirectory, err := os.OpenFile(
-		filepath.Join(directory, WalDirectoryName),
-		os.O_CREATE|os.O_RDWR,
-		0755,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open wal directory: %w", err)
-	}
-	defer func() {
-		if db == nil {
-			_ = walDirectory.Close()
-		}
-	}()
-
-	db.dataDirectory = dataDirectory
-	db.walDirectory = walDirectory
-	db.memtable = memtable.NewMemTable(make(chan<- memtable.Flush)) // TODO replace with real flusher channel
-	db.openedAt = time.Now()
-
-	// Attempt to close resources on panic
-	defer func() {
-		if r := recover(); r != nil {
-			_ = db.Close()
-		}
-	}()
-
-	return db, nil
+	return Boulder{db: database}, nil
 }
 
-func (db *DB) Get(key []byte) (value []byte, closer io.Closer, err error) {
-	value, finish, ok := db.memtable.Get(key)
-	if !ok {
-		return nil, nil, ErrNotFound
-	}
-
-	return value, Close(func() { finish() }), nil
+func (b *Boulder) Get(key []byte) ([]byte, io.Closer, error) {
+	return b.db.Get(key)
 }
 
-func (db *DB) Set(key, value []byte) error {
-	db.memtable.Set(key, value)
-	return nil
+func (b *Boulder) Set(key, value []byte) error {
+	return b.db.Set(key, value)
 }
 
-func (db *DB) Delete(key []byte) error {
-	db.memtable.Delete(key)
-	return nil
+func (b *Boulder) Delete(key []byte) error {
+	return b.db.Delete(key)
 }
 
-func (db *DB) DeleteRange(start, end []byte) error {
-	db.memtable.DeleteRange(start, end)
-	return nil
+func (b *Boulder) DeleteRange(start, end []byte) error {
+	return b.db.DeleteRange(start, end)
 }
 
-// Close is a blocking call that will wait until all pending writes and
-// compactions are finished before safely closing the DB.
-func (db *DB) Close() error {
-	var errs []error
-	if err := db.dataDirectory.Close(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to close data directory: %w", err))
-	}
-	if err := db.walDirectory.Close(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to close wal directory: %w", err))
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to close database: %w", errors.Join(errs...))
-	}
-	return nil
+func (b *Boulder) Close() error {
+	return b.db.Close()
 }

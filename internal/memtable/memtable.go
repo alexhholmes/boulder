@@ -3,6 +3,8 @@ package memtable
 import (
 	"io"
 	"sync"
+
+	"boulder/internal/wal"
 )
 
 type Flush func(w io.Writer, flushed <-chan struct{})
@@ -11,7 +13,8 @@ type Flush func(w io.Writer, flushed <-chan struct{})
 // using a red-black tree.
 type MemTable struct {
 	mu       sync.RWMutex
-	tree     *BalancedTree
+	wal      *wal.WriteAheadLog
+	skiplist *SkipList
 	dead     map[*BalancedTree]struct{}
 	deadChan chan<- *BalancedTree
 	flush    chan<- Flush
@@ -19,7 +22,7 @@ type MemTable struct {
 
 // NewMemTable returns a new MemTable with the given flush channel. The flush
 // is created and consumed by the lsm manager.
-func NewMemTable(flush chan<- Flush) *MemTable {
+func NewMemTable(wal *wal.WriteAheadLog, flush chan<- Flush) *MemTable {
 	m := &MemTable{
 		tree:  NewBalancedTree(4096 * 4),
 		dead:  make(map[*BalancedTree]struct{}, 64),
@@ -124,5 +127,6 @@ var _ io.Closer = (*MemTable)(nil)
 // call on the LSM will wait for all pending writes to finish before closing.
 func (m *MemTable) Close() error {
 	m.Flush()
+	m.wal.Close()
 	return nil
 }

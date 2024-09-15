@@ -1,6 +1,12 @@
-package boulder
+package pkg
 
 import "io"
+
+type ReadWriterCloser interface {
+	Reader
+	Writer
+	io.Closer
+}
 
 type Reader interface {
 	// Get gets the value for the given key. It returns ErrNotFound if the DB

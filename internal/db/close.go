@@ -1,4 +1,4 @@
-package boulder
+package db
 
 import (
 	"io"
