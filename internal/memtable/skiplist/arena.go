@@ -2,18 +2,19 @@ package skiplist
 
 import (
 	"errors"
-	"sync/atomic"
 	"unsafe"
+
+	"boulder/internal/util/types"
 )
 
-type Arena struct {
-	n   atomic.Int64
-	buf []byte
-}
-
-const nodeAlignment = 4
+const NodeAlignment = 4
 
 var ErrArenaFull = errors.New("allocation failed because arena is full")
+
+type Arena struct {
+	n   types.AtomicInt
+	buf []byte
+}
 
 func NewArena(buf []byte) *Arena {
 
@@ -24,8 +25,8 @@ func (a *Arena) Size() int {
 	return int(s)
 }
 
-func (a *Arena) Capacity() uint64 {
-	return uint64(len(a.buf))
+func (a *Arena) Capacity() int {
+	return len(a.buf)
 }
 
 func (a *Arena) alloc(size, alignment, overflow uint32) (uint32, uint32, error) {
@@ -35,16 +36,16 @@ func (a *Arena) alloc(size, alignment, overflow uint32) (uint32, uint32, error) 
 func (a *Arena) getBytes(offset uint32, size uint32) []byte {
 }
 
-func (a *Arena) getPointer(offset uint32) unsafe.Pointer {
+func (a *Arena) getPointer(offset int) unsafe.Pointer {
 	if offset == 0 {
 		return nil
 	}
 	return unsafe.Pointer(&a.buf[offset])
 }
 
-func (a *Arena) getPointerOffset(ptr unsafe.Pointer) uint32 {
+func (a *Arena) getPointerOffset(ptr unsafe.Pointer) int {
 	if ptr == nil {
 		return 0
 	}
-	return uint32(uintptr(ptr) - uintptr(unsafe.Pointer(&a.buf[0])))
+	return int(uintptr(ptr) - uintptr(unsafe.Pointer(&a.buf[0])))
 }
