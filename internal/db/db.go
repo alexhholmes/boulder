@@ -21,10 +21,6 @@ const (
 	WalDirectoryName  = "wal"
 )
 
-var (
-	ErrNotFound = fmt.Errorf("pkg: not found")
-)
-
 type DB struct {
 	name     string
 	session  string
@@ -96,7 +92,6 @@ func Open(directory string, options ...pkg.Option) (db *DB, err error) {
 
 	db.dataDirectory = dataDirectory
 	db.walDirectory = walDirectory
-	db.storage = storage.Open(dataDirectoryPath, walDirectoryPath)
 	db.memtable = memtable.NewMemTable(make(chan<- memtable.Flush)) // TODO replace with real flusher channel
 	db.openedAt = time.Now()
 
@@ -113,7 +108,7 @@ func Open(directory string, options ...pkg.Option) (db *DB, err error) {
 func (db *DB) Get(key []byte) (value []byte, closer io.Closer, err error) {
 	value, finish, ok := db.memtable.Get(key)
 	if !ok {
-		return nil, nil, ErrNotFound
+		return nil, nil, ErrKeyNotFound
 	}
 
 	return value, Close(func() { finish() }), nil

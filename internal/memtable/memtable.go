@@ -4,8 +4,7 @@ import (
 	"io"
 	"sync"
 
-	skiplist2 "boulder/internal/memtable/skiplist"
-	"boulder/internal/wal"
+	"boulder/internal/memtable/skiplist"
 )
 
 type Flush func(w io.Writer, flushed sync.WaitGroup)
@@ -13,19 +12,15 @@ type Flush func(w io.Writer, flushed sync.WaitGroup)
 // MemTable is a memory table that stores key-value pairs in sorted order
 // using a red-black tree.
 type MemTable struct {
-	mu       sync.RWMutex
-	wal      *wal.WriteAheadLog
-	skiplist *skiplist2.SkipList
-	dead     map[*BalancedTree]struct{}
-	deadChan chan<- *BalancedTree
-	flush    chan<- Flush
+	mu    sync.RWMutex
+	skip  *skiplist.Skiplist
+	flush chan<- Flush
 }
 
 // NewMemTable returns a new MemTable with the given flush channel. The flush
 // is created and consumed by the lsm manager.
-func NewMemTable(wal *wal.WriteAheadLog, flush chan<- Flush) *MemTable {
+func NewMemTable(flush chan<- Flush) *MemTable {
 	m := &MemTable{
-		tree:  NewBalancedTree(4096 * 4),
 		dead:  make(map[*BalancedTree]struct{}, 64),
 		flush: flush,
 	}
@@ -128,6 +123,5 @@ var _ io.Closer = (*MemTable)(nil)
 // call on the LSM will wait for all pending writes to finish before closing.
 func (m *MemTable) Close() error {
 	m.Flush()
-	m.wal.Close()
 	return nil
 }

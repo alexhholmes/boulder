@@ -3,7 +3,7 @@ package skiplist
 import (
 	"math"
 
-	"boulder/internal/base"
+	"boulder/internal/memtable/skiplist/arch"
 )
 
 // MaxNodeSize returns the maximum space needed for a node with the specified
@@ -16,8 +16,8 @@ func MaxNodeSize(keySize, valueSize uint32) uint64 {
 }
 
 type links struct {
-	nextOffset base.AtomicInt
-	prevOffset base.AtomicInt
+	nextOffset arch.AtomicInt
+	prevOffset arch.AtomicInt
 }
 
 func (l *links) init(prevOffset, nextOffset uint32) {
