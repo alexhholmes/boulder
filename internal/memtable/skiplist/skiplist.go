@@ -3,6 +3,7 @@ package skiplist
 import (
 	"bytes"
 	"errors"
+	"iter"
 	"unsafe"
 
 	"boulder/internal/base"
@@ -103,6 +104,23 @@ func (s *Skiplist) Height() uint {
 // Size returns the number of bytes that have been allocated from the arena.
 func (s *Skiplist) Size() uint {
 	return s.arena.Len()
+}
+
+// Iter returns a new Iterator object. The lower and upper bound parameters
+// control the range of keys the iterator will return. Specifying for nil for
+// lower or upper bound disables the check for that boundary. Note that lower
+// bound is not checked on {SeekGE,First} and upper bound is not check on
+// {SeekLT,Last}. The user is expected to perform that check. Note that it is
+// safe for an iterator to be copied by value.
+func (s *Skiplist) Iter(lower, upper []byte) iter.Seq2[[]byte, []byte] {
+	panic("unimplemented")
+}
+
+// FlushIter returns a new flushIterator, which is similar to an Iterator
+// but also sets the current number of the bytes that have been iterated
+// through.
+func (s *Skiplist) FlushIter() iter.Seq2[[]byte, []byte] {
+	panic("unimplemented")
 }
 
 // Add adds a new key if it does not yet exist. If the key already exists, then
