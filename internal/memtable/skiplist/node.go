@@ -39,7 +39,7 @@ type node struct {
 	tower [maxHeight]links
 }
 
-func newNewNode(
+func newNode(
 	a *arena.Arena, height uint, key base.InternalKey, value []byte,
 ) (*node, error) {
 

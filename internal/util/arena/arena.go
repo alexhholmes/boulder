@@ -7,15 +7,6 @@ import (
 	"boulder/internal/util/arch"
 )
 
-type Alignment uint
-
-const (
-	Align1 Alignment = 0
-	Align2 Alignment = 1
-	Align4 Alignment = 3
-	Align8 Alignment = 7
-)
-
 var (
 	ErrArenaFull = errors.New("allocation failed because arena is full")
 )
@@ -23,7 +14,7 @@ var (
 // Arena is a lock-free arena allocator.
 type Arena struct {
 	n   arch.AtomicUint
-	buf []byte
+	Buf []byte
 }
 
 // NewArena allocates a new arena using the specified buffer as the backing
@@ -31,7 +22,7 @@ type Arena struct {
 // lifetime of the arena.
 func NewArena(size uint) *Arena {
 	a := &Arena{
-		buf: make([]byte, size),
+		Buf: make([]byte, size),
 	}
 
 	// We don't store data at position 0 to reserve offset=0 as a nil pointer
@@ -40,24 +31,25 @@ func NewArena(size uint) *Arena {
 	return a
 }
 
-func (a *Arena) Allocate(size, overflow uint, align Alignment) (offset, padded uint, err error) {
+func (a *Arena) Allocate(size, overflow uint, alignment uint) (offset, padded uint,
+	err error) {
 	// Verify that the arena isn't already full
 	originalSize := a.n.Load()
-	if uint(originalSize) > uint(len(a.buf)) {
+	if uint(originalSize) > uint(len(a.Buf)) {
 		return 0, 0, ErrArenaFull
 	}
 
 	// Pad the allocation with enough bytes to ensure the requested alignment
-	padded = size + uint(align)
+	padded = size + alignment - 1
 
 	newSize := uint(a.n.Add(arch.UintToArchSize(padded)))
-	if newSize+overflow > uint(len(a.buf)) {
+	if newSize+overflow > uint(len(a.Buf)) {
 		// Double check that the arena isn't full after calculating the new size
 		return 0, 0, ErrArenaFull
 	}
 
 	// Return the aligned offset
-	offset = (newSize - padded + uint(align)) & ^uint(align)
+	offset = (newSize - padded + uint(alignment)) & ^(alignment - 1)
 	return offset, padded, nil
 }
 
@@ -70,7 +62,7 @@ func (a *Arena) Len() uint {
 
 // Cap returns the length of the underlying buffer.
 func (a *Arena) Cap() uint {
-	return uint(len(a.buf))
+	return uint(len(a.Buf))
 }
 
 // Reset sets the arena size to 1, without overwriting the old buffer data.
@@ -85,7 +77,7 @@ func (a *Arena) GetBytes(offset uint, size uint) []byte {
 
 	// Return a slice with capacity equal to the size of the allocation so
 	// that the caller can't overwrite past the end of the allocation.
-	return a.buf[offset : offset+size : offset+size]
+	return a.Buf[offset : offset+size : offset+size]
 }
 
 func (a *Arena) GetPointer(offset uint) unsafe.Pointer {
@@ -93,7 +85,7 @@ func (a *Arena) GetPointer(offset uint) unsafe.Pointer {
 		return nil
 	}
 
-	return unsafe.Pointer(&a.buf[offset])
+	return unsafe.Pointer(&a.Buf[offset])
 }
 
 func (a *Arena) GetPointerOffset(ptr unsafe.Pointer) uint {
@@ -101,5 +93,5 @@ func (a *Arena) GetPointerOffset(ptr unsafe.Pointer) uint {
 		return 0
 	}
 
-	return uint(uintptr(ptr) - uintptr(unsafe.Pointer(&a.buf[0])))
+	return uint(uintptr(ptr) - uintptr(unsafe.Pointer(&a.Buf[0])))
 }
