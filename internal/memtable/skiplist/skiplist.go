@@ -1,5 +1,9 @@
 /*
-Adapted from CockroachDB Pebble: https://github.com/cockroachdb/pebble.
+Adapted from CockroachDB Pebble: https://github.com/cockroachdb/pebble
+and from Andy Kimball: https://github.com:andy-kimball/arenaskl
+
+Key differences:
+- Architecture specific atomic int types used.
 
 Further adapted from RocksDB inline skiplist: https://github.com/facebook/rocksdb.
 
@@ -31,13 +35,17 @@ import (
 	"math"
 	"unsafe"
 
-	"boulder/internal/memtable/skiplist/arch"
+	"boulder/internal/util/arch"
+	"boulder/internal/util/arena"
 )
 
 const (
-	maxHeight = 20
-	pValue    = 1 / math.E
-	linkSize  = int(unsafe.Sizeof(links{}))
+	maxNodeSize   = uint(unsafe.Sizeof(node{}))
+	maxHeight     = uint(20)
+	pValue        = 1 / math.E
+	linksSize     = uint(unsafe.Sizeof(links{}))
+	nodeAlignment = 4
+	deletedValue  = 0
 )
 
 var probabilities [maxHeight]uint32
@@ -47,7 +55,7 @@ func init() {
 	// needs to be generated and so that the optimal pvalue can be used (inverse
 	// of Euler's number).
 	p := float64(1.0)
-	for i := 0; i < maxHeight; i++ {
+	for i := uint(0); i < maxHeight; i++ {
 		probabilities[i] = uint32(float64(math.MaxUint32) * p)
 		p *= pValue
 	}
@@ -68,7 +76,7 @@ var (
 // is up to the user to process these shadow entries and tombstones appropriately
 // during retrieval.
 type Skiplist struct {
-	arena  *Arena
+	arena  *arena.Arena
 	head   *node
 	tail   *node
 	height arch.AtomicUint // Current height. 1 <= height <= maxHeight. CAS.
@@ -76,37 +84,37 @@ type Skiplist struct {
 
 // NewSkiplist constructs and initializes a new, empty skiplist. All nodes, keys,
 // and values in the skiplist will be allocated from the given arena.
-func NewSkiplist(arena *Arena) *Skiplist {
+func NewSkiplist(arena *arena2.Arena) *Skiplist {
 	skl := &Skiplist{}
 	skl.Reset(arena)
 	return skl
 }
 
 // Reset the skiplist to empty and re-initialize.
-func (s *Skiplist) Reset(arena *Arena) {
+func (s *Skiplist) Reset(a *arena.Arena) {
 	// Allocate head and tail nodes.
-	head, err := newRawNode(arena, maxHeight, 0, 0)
+	head, err := newRawNode(a, maxHeight, 0, 0)
 	if err != nil {
 		panic("arenaSize is not large enough to hold the head node")
 	}
 	head.keyOffset = 0
 
-	tail, err := newRawNode(arena, maxHeight, 0, 0)
+	tail, err := newRawNode(a, maxHeight, 0, 0)
 	if err != nil {
 		panic("arenaSize is not large enough to hold the tail node")
 	}
 	tail.keyOffset = 0
 
 	// Link all head/tail levels together.
-	headOffset := arena.getPointerOffset(unsafe.Pointer(head))
-	tailOffset := arena.getPointerOffset(unsafe.Pointer(tail))
+	headOffset := a.getPointerOffset(unsafe.Pointer(head))
+	tailOffset := a.getPointerOffset(unsafe.Pointer(tail))
 	for i := 0; i < maxHeight; i++ {
 		head.tower[i].nextOffset.Store(int64(tailOffset))
 		tail.tower[i].prevOffset.Store(int64(headOffset))
 	}
 
 	*s = Skiplist{
-		arena: arena,
+		arena: a,
 		head:  head,
 		tail:  tail,
 	}
@@ -114,7 +122,7 @@ func (s *Skiplist) Reset(arena *Arena) {
 }
 
 // Arena returns the arena backing this skiplist.
-func (s *Skiplist) Arena() *Arena {
+func (s *Skiplist) Arena() *arena.Arena {
 	return s.arena
 }
 

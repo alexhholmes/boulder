@@ -8,3 +8,11 @@ type (
 	AtomicInt  = atomic.Int64
 	AtomicUint = atomic.Uint64
 )
+
+func IntToArchSize(n int) uint64 {
+	return uint64(n)
+}
+
+func UintToArchSize(n uint) uint64 {
+	return uint64(n)
+}

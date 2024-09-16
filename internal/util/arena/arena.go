@@ -1,10 +1,10 @@
-package skiplist
+package arena
 
 import (
 	"errors"
 	"unsafe"
 
-	"boulder/internal/memtable/skiplist/arch"
+	"boulder/internal/util/arch"
 )
 
 type Alignment uint
@@ -50,7 +50,7 @@ func (a *Arena) Allocate(size, overflow uint, align Alignment) (offset, padded u
 	// Pad the allocation with enough bytes to ensure the requested alignment
 	padded = size + uint(align)
 
-	newSize := uint(a.n.Add(uint64(padded)))
+	newSize := uint(a.n.Add(arch.UintToArchSize(padded)))
 	if newSize+overflow > uint(len(a.buf)) {
 		// Double check that the arena isn't full after calculating the new size
 		return 0, 0, ErrArenaFull
