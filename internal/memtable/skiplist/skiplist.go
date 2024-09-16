@@ -119,7 +119,7 @@ func (s *Skiplist) Iter(lower, upper []byte) iter.Seq2[[]byte, []byte] {
 // FlushIter returns a new flushIterator, which is similar to an Iterator
 // but also sets the current number of the bytes that have been iterated
 // through.
-func (s *Skiplist) FlushIter() iter.Seq2[[]byte, []byte] {
+func (s *Skiplist) FlushIter() {
 	panic("unimplemented")
 }
 
