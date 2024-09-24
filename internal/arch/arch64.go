@@ -9,8 +9,8 @@ type (
 	AtomicUint = atomic.Uint64
 )
 
-func IntToArchSize(n int) uint64 {
-	return uint64(n)
+func IntToArchSize(n int) int64 {
+	return int64(n)
 }
 
 func UintToArchSize(n uint) uint64 {

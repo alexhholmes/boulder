@@ -133,6 +133,34 @@ func MakeInternalKey(userKey []byte, seqNum SeqNum, kind InternalKeyKind) Intern
 	}
 }
 
+// InternalKV represents a single internal key-value pair.
+type InternalKV struct {
+	K InternalKey
+	V []byte
+}
+
+// TODO
+// // Kind returns the KV's internal key kind.
+// func (kv *InternalKV) Kind() InternalKeyKind {
+// 	return kv.K.Kind()
+// }
+
+// TODO
+// // SeqNum returns the KV's internal key sequence number.
+// func (kv *InternalKV) SeqNum() SeqNum {
+// 	return kv.K.SeqNum()
+// }
+//
+// // InPlaceValue returns the KV's in-place value.
+// func (kv *InternalKV) InPlaceValue() []byte {
+// 	return kv.V.InPlaceValue()
+// }
+//
+// // Value return's the KV's underlying value.
+// func (kv *InternalKV) Value(buf []byte) (val []byte, callerOwned bool, err error) {
+// 	return kv.V.Value(buf)
+// }
+
 // MakeSearchKey constructs an internal key that is appropriate for searching
 // for a the specified user key. The search key contain the maximal sequence
 // number and kind ensuring that it sorts before any other internal keys for

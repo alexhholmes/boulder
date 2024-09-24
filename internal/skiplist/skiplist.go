@@ -3,20 +3,49 @@ package skiplist
 import (
 	"bytes"
 	"errors"
-	"iter"
+	"math"
 	"unsafe"
 
+	"boulder/internal/arch"
 	"boulder/internal/base"
-	"boulder/internal/util/arch"
-	"boulder/internal/util/arena"
-	"boulder/internal/util/fastrand"
+	"boulder/internal/fastrand"
 )
 
-// ErrRecordExists indicates that an entry with the specified key already
-// exists in the skiplist. Duplicate entries are not directly supported and
-// instead must be handled by the user by appending a unique version suffix to
-// keys.
+const (
+	maxNodeSize   = uint(unsafe.Sizeof(node{}))
+	linksSize     = uint(unsafe.Sizeof(links{}))
+	maxHeight     = uint(20)
+	pValue        = 1 / math.E
+	nodeAlignment = 4
+)
+
+var probabilities [maxHeight]uint32
+
+func init() {
+	// Precompute the skiplist probabilities so that only a single random number
+	// needs to be generated and so that the optimal pvalue can be used (inverse
+	// of Euler's number).
+	p := float64(1.0)
+	for i := uint(0); i < maxHeight; i++ {
+		probabilities[i] = uint32(float64(math.MaxUint32) * p)
+		p *= pValue
+	}
+}
+
 var ErrRecordExists = errors.New("record with this key already exists")
+
+// Skiplist is a fast, concurrent skiplist implementation that supports forward
+// and backward iteration. Keys and values are immutable once added to the skiplist
+// and deletion is not supported. Instead, higher-level code is expected to add new
+// entries that shadow existing entries and perform deletion via tombstones. It
+// is up to the user to process these shadow entries and tombstones appropriately
+// during retrieval.
+type Skiplist struct {
+	arena  *base.Arena
+	head   *node
+	tail   *node
+	height arch.AtomicUint // Current height. 1 <= height <= maxHeight. CAS.
+}
 
 type splice struct {
 	prev *node
@@ -33,34 +62,20 @@ type Inserter struct {
 	height uint
 }
 
-// Add TODO(peter)
 func (ins *Inserter) Add(list *Skiplist, key base.InternalKey, value []byte) error {
 	return list.addInternal(key, value, ins)
 }
 
-// Skiplist is a fast, concurrent skiplist implementation that supports forward
-// and backward iteration. Keys and values are immutable once added to the skiplist
-// and deletion is not supported. Instead, higher-level code is expected to add new
-// entries that shadow existing entries and perform deletion via tombstones. It
-// is up to the user to process these shadow entries and tombstones appropriately
-// during retrieval.
-type Skiplist struct {
-	arena  *arena.Arena
-	head   *node
-	tail   *node
-	height arch.AtomicUint // Current height. 1 <= height <= maxHeight. CAS.
-}
-
 // NewSkiplist constructs and initializes a new, empty skiplist. All nodes, keys,
 // and values in the skiplist will be allocated from the given arena.
-func NewSkiplist(arena *arena.Arena) *Skiplist {
+func NewSkiplist(arena *base.Arena) *Skiplist {
 	skl := &Skiplist{}
 	skl.Reset(arena)
 	return skl
 }
 
 // Reset the skiplist to empty and re-initialize.
-func (s *Skiplist) Reset(a *arena.Arena) {
+func (s *Skiplist) Reset(a *base.Arena) {
 	// Allocate head and tail nodes.
 	head, err := newRawNode(a, maxHeight, 0, 0)
 	if err != nil {
@@ -91,7 +106,7 @@ func (s *Skiplist) Reset(a *arena.Arena) {
 }
 
 // Arena returns the arena backing this skiplist.
-func (s *Skiplist) Arena() *arena.Arena {
+func (s *Skiplist) Arena() *base.Arena {
 	return s.arena
 }
 
@@ -106,22 +121,26 @@ func (s *Skiplist) Size() uint {
 	return s.arena.Len()
 }
 
-// Iter returns a new Iterator object. The lower and upper bound parameters
+// NewIter returns a new Iterator object. The lower and upper bound parameters
 // control the range of keys the iterator will return. Specifying for nil for
 // lower or upper bound disables the check for that boundary. Note that lower
 // bound is not checked on {SeekGE,First} and upper bound is not check on
 // {SeekLT,Last}. The user is expected to perform that check. Note that it is
 // safe for an iterator to be copied by value.
-func (s *Skiplist) Iter(lower, upper []byte) iter.Seq2[[]byte, []byte] {
-	panic("unimplemented")
-}
+// func (s *Skiplist) NewIter(lower, upper []byte) *Iterator {
+// 	it := iterPool.Get().(*Iterator)
+// 	*it = Iterator{list: s, nd: s.head, lower: lower, upper: upper}
+// 	return it
+// }
 
-// FlushIter returns a new flushIterator, which is similar to an Iterator
+// NewFlushIter returns a new flushIterator, which is similar to an Iterator
 // but also sets the current number of the bytes that have been iterated
 // through.
-func (s *Skiplist) FlushIter() {
-	panic("unimplemented")
-}
+// func (s *Skiplist) NewFlushIter() base.Iterator {
+// 	return &flushIterator{
+// 		Iterator: Iterator{list: s, nd: s.head},
+// 	}
+// }
 
 // Add adds a new key if it does not yet exist. If the key already exists, then
 // Add returns ErrRecordExists. If there isn't enough room in the arena, then

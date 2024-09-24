@@ -1,10 +1,10 @@
-package arena
+package base
 
 import (
 	"errors"
 	"unsafe"
 
-	"boulder/internal/util/arch"
+	"boulder/internal/arch"
 )
 
 var (
@@ -31,8 +31,7 @@ func NewArena(size uint) *Arena {
 	return a
 }
 
-func (a *Arena) Allocate(size, overflow uint, alignment uint) (offset, padded uint,
-	err error) {
+func (a *Arena) Allocate(size, overflow uint, alignment uint) (offset, padded uint, err error) {
 	// Verify that the arena isn't already full
 	originalSize := a.n.Load()
 	if uint(originalSize) > uint(len(a.Buf)) {
