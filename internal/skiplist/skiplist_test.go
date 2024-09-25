@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"boulder/internal/arena"
 	base2 "boulder/internal/base"
 )
 
@@ -23,7 +24,7 @@ func TestNodeArenaEnd(t *testing.T) {
 	// successfully. The prior attempt will have exercised the right code
 	// path.
 	for i := uint(1); i < 256; i++ {
-		a := base2.NewArena(i)
+		a := arena.NewArena(i)
 		_, err := newNode(a, 1, ikey, val)
 		if err == nil {
 			// We reached an arena size big enough to allocate a node.
@@ -32,6 +33,6 @@ func TestNodeArenaEnd(t *testing.T) {
 			t.Log(i)
 			break
 		}
-		require.Equal(t, base2.ErrArenaFull, err)
+		require.Equal(t, arena.ErrArenaFull, err)
 	}
 }

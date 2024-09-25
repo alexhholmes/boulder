@@ -1,8 +1,10 @@
-package base
+package iterator
 
 import (
 	"context"
 	"fmt"
+
+	"boulder/internal/base"
 )
 
 // Iterator iterates over a DB's key/value pairs in key order. The returned
@@ -93,7 +95,7 @@ type Iterator interface {
 	// is pointing at a valid entry, and (nil, nilv) otherwise. Note that SeekGE
 	// only checks the upper bound. It is up to the caller to ensure that key
 	// is greater than or equal to the lower bound.
-	SeekGE(key []byte, flags SeekGEFlags) *InternalKV
+	SeekGE(key []byte, flags SeekGEFlags) *base.InternalKV
 
 	// SeekPrefixGE moves the iterator to the first key/value pair whose key is
 	// greater than or equal to the given key. Returns the key and value if the
@@ -120,28 +122,28 @@ type Iterator interface {
 	// not supporting reverse iteration in prefix iteration mode until a
 	// different positioning routine (SeekGE, SeekLT, First or Last) switches the
 	// iterator out of prefix iteration.
-	SeekPrefixGE(prefix, key []byte, flags SeekGEFlags) *InternalKV
+	SeekPrefixGE(prefix, key []byte, flags SeekGEFlags) *base.InternalKV
 
 	// SeekLT moves the iterator to the last key/value pair whose key is less
 	// than the given key. Returns the key and value if the iterator is pointing
 	// at a valid entry, and (nil, nilv) otherwise. Note that SeekLT only checks
 	// the lower bound. It is up to the caller to ensure that key is less than
 	// the upper bound.
-	SeekLT(key []byte, flags SeekLTFlags) *InternalKV
+	SeekLT(key []byte, flags SeekLTFlags) *base.InternalKV
 
 	// First moves the iterator the first key/value pair. Returns the key and
 	// value if the iterator is pointing at a valid entry, and (nil, nilv)
 	// otherwise. Note that First only checks the upper bound. It is up to the
 	// caller to ensure that First() is not called when there is a lower bound,
 	// and instead call SeekGE(lower).
-	First() *InternalKV
+	First() *base.InternalKV
 
 	// Last moves the iterator the last key/value pair. Returns the key and
 	// value if the iterator is pointing at a valid entry, and (nil, nilv)
 	// otherwise. Note that Last only checks the lower bound. It is up to the
 	// caller to ensure that Last() is not called when there is an upper bound,
 	// and instead call SeekLT(upper).
-	Last() *InternalKV
+	Last() *base.InternalKV
 
 	// Next moves the iterator to the next key/value pair. Returns the key and
 	// value if the iterator is pointing at a valid entry, and (nil, nilv)
@@ -152,7 +154,7 @@ type Iterator interface {
 	// key/value pair due to either a prior call to SeekLT or Prev which returned
 	// (nil, nilv). It is not allowed to call Next when the previous call to SeekGE,
 	// SeekPrefixGE or Next returned (nil, nilv).
-	Next() *InternalKV
+	Next() *base.InternalKV
 
 	// NextPrefix moves the iterator to the next key/value pair with a different
 	// prefix than the key at the current iterator position. Returns the key and
@@ -168,7 +170,7 @@ type Iterator interface {
 	// positioning operation or a call to a forward positioning method that
 	// returned (nil, nilv). It is also not allowed to call NextPrefix when the
 	// iterator is in prefix iteration mode.
-	NextPrefix(succKey []byte) *InternalKV
+	NextPrefix(succKey []byte) *base.InternalKV
 
 	// Prev moves the iterator to the previous key/value pair. Returns the key
 	// and value if the iterator is pointing at a valid entry, and (nil, nilv)
@@ -179,7 +181,7 @@ type Iterator interface {
 	// key/value pair due to either a prior call to SeekGE or Next which returned
 	// (nil, nilv). It is not allowed to call Prev when the previous call to SeekLT
 	// or Prev returned (nil, nilv).
-	Prev() *InternalKV
+	Prev() *base.InternalKV
 
 	// Error returns any accumulated error. It may not include errors returned
 	// to the client when calling LazyValue.Value().
@@ -217,7 +219,7 @@ type StrictPrefixIterator interface {
 
 	// SeekPrefixGEStrict extends Iterator.SeekPrefixGE with a guarantee
 	// that the iterator only returns keys matching the prefix.
-	SeekPrefixGEStrict(prefix, key []byte, flags SeekGEFlags) *InternalKV
+	SeekPrefixGEStrict(prefix, key []byte, flags SeekGEFlags) *base.InternalKV
 }
 
 // SeekGEFlags holds flags that may configure the behavior of a forward seek.

@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"boulder/internal/arch"
+	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/internal/fastrand"
 )
@@ -41,7 +42,7 @@ var ErrRecordExists = errors.New("record with this key already exists")
 // is up to the user to process these shadow entries and tombstones appropriately
 // during retrieval.
 type Skiplist struct {
-	arena  *base.Arena
+	arena  *arena.Arena
 	head   *node
 	tail   *node
 	height arch.AtomicUint // Current height. 1 <= height <= maxHeight. CAS.
@@ -68,14 +69,23 @@ func (ins *Inserter) Add(list *Skiplist, key base.InternalKey, value []byte) err
 
 // NewSkiplist constructs and initializes a new, empty skiplist. All nodes, keys,
 // and values in the skiplist will be allocated from the given arena.
-func NewSkiplist(arena *base.Arena) *Skiplist {
+func NewSkiplist(arena *arena.Arena) *Skiplist {
 	skl := &Skiplist{}
 	skl.Reset(arena)
 	return skl
 }
 
 // Reset the skiplist to empty and re-initialize.
-func (s *Skiplist) Reset(a *base.Arena) {
+func (s *Skiplist) Reset(a *arena.Arena) {
+	if a == nil {
+		*s = Skiplist{
+			arena: nil,
+			head:  nil,
+			tail:  nil,
+		}
+		return
+	}
+
 	// Allocate head and tail nodes.
 	head, err := newRawNode(a, maxHeight, 0, 0)
 	if err != nil {
@@ -106,7 +116,7 @@ func (s *Skiplist) Reset(a *base.Arena) {
 }
 
 // Arena returns the arena backing this skiplist.
-func (s *Skiplist) Arena() *base.Arena {
+func (s *Skiplist) Arena() *arena.Arena {
 	return s.arena
 }
 

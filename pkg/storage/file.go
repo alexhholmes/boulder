@@ -10,7 +10,7 @@ import (
 
 type Option func(*Writer)
 
-// Writer is a wrapper around `directio.File`. This will write data to the file
+// Writer is a wrapper around a directio file. This will write data to the file
 // in multiples of the block size. If there is any data that is not a multiple
 // of the block size, it will be written to the file in the next block with
 // padding.

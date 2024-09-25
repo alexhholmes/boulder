@@ -2,18 +2,16 @@ package memtable
 
 import (
 	"errors"
-	"io"
 	"sync"
 	"sync/atomic"
 
 	"github.com/ncw/directio"
 
 	"boulder/internal/arch"
+	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/internal/skiplist"
 )
-
-type Flush func(iter base.Iterator, flushed *sync.WaitGroup)
 
 // MemTable is a memory table that stores key-value pairs in sorted order
 // using a red-black tree.
@@ -35,13 +33,9 @@ type MemTable struct {
 	// flushing indicates that the memtable is full and is no longer accepting
 	// writes.
 	flushing atomic.Bool
-
-	// flush is a function that provides reference to a storage writer and a
-	// wait group to signal when the flush to disk is complete.
-	flush Flush
 }
 
-func New(size uint, flush Flush) *MemTable {
+func New(size uint) *MemTable {
 	// Align the size to the block size
 	if size < directio.BlockSize {
 		// Minimum; single disk block
@@ -54,8 +48,7 @@ func New(size uint, flush Flush) *MemTable {
 	}
 
 	m := &MemTable{
-		skiplist: skiplist.NewSkiplist(base.NewArena(size)),
-		flush:    flush,
+		skiplist: skiplist.NewSkiplist(arena.NewArena(size)),
 	}
 
 	// A newly created memtable is considered active and has a reference count
@@ -66,7 +59,7 @@ func New(size uint, flush Flush) *MemTable {
 	return m
 }
 
-func NewFromArena(a *base.Arena) *MemTable {
+func NewFromArena(a *arena.Arena) *MemTable {
 	return &MemTable{
 		skiplist: skiplist.NewSkiplist(a),
 	}
@@ -79,7 +72,7 @@ func (m *MemTable) Set(kv base.InternalKV) error {
 
 	err := m.skiplist.Add(kv.K, kv.V)
 	if err != nil {
-		if errors.Is(err, base.ErrArenaFull) {
+		if errors.Is(err, arena.ErrArenaFull) {
 			// Skiplist is full, flush to disk, caller should create a new
 			// memory table and try again.
 			if m.flushing.CompareAndSwap(false, true) {
@@ -106,7 +99,7 @@ func (m *MemTable) Flush() {
 
 	// The flush function will run in a separate goroutine and signal the
 	// wait group when the flush is complete.
-	m.flush(, wg)
+	// m.flush(, wg)
 
 	// Wait for the flush to complete before decrementing the reference count.
 	// This does not mean the memtable is no longer active, but that the
@@ -124,27 +117,23 @@ func (m *MemTable) Size() uint {
 	return m.skiplist.Size()
 }
 
-// Reset clears the skiplist and resets the arena to reuse the allocated
-// memory. This is to be used by DB to retain one retired memtable for
-// reuse during memtable rotation. This requires a new flush function to be
-// provided for writing to a new file.
-func (m *MemTable) Reset(flush Flush) error {
-	if m.references.Load() > 0 {
-		return ErrMemtableActive
-	}
-
-	m.flush = flush
-	m.flushing.Store(false)
-	arena := m.skiplist.Arena()
-	arena.Reset()
-	m.skiplist.Reset(arena)
-
-	return nil
-}
-
 // IsActive returns false if the memtable has been flushed to disk and no
 // longer has any reader references. At which point, the memtable can be
 // safely reset or destroyed (GC).
 func (m *MemTable) IsActive() bool {
 	return m.references.Load() != 0
+}
+
+// ReleaseArena returns a pointer to the arena used by this memtable and removes
+// its reference from the memtable. This is meant for the reuse of the arena for
+// a future memtable. This returns nil if the memtable is still active or if the
+// arena has already been released.
+func (m *MemTable) ReleaseArena() *arena.Arena {
+	if !m.IsActive() {
+		return nil
+	}
+
+	a := m.skiplist.Arena()
+	m.skiplist.Reset(nil)
+	return a
 }

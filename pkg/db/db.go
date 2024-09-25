@@ -5,10 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"boulder/internal/arena"
 	"boulder/internal/base"
+	"boulder/internal/iterator"
 	"boulder/pkg/manifest"
 	"boulder/pkg/memtable"
 	"boulder/pkg/wal"
@@ -20,14 +24,36 @@ const (
 )
 
 type DB struct {
+	// mu protects the global database state. This is only held when memtables
+	// are being swapped along with the corresponding WAL.
+	mu sync.Mutex
+
 	name     string
 	session  string
 	openedAt time.Time
+	seqNum   base.AtomicSeqNum
 
-	manifest *manifest.Manifest
+	// memtable is a concurrent in-memory KV store for all writes to the
+	// database. The memtable is temporary, and once it is full, it is flushed
+	// to disk.
 	memtable *memtable.MemTable
-	wal      *wal.WriteAheadLog
+	wal      *wal.WAL
+	// activeMemtables is a list of memtables that are flushing or have been
+	// flushed to disk. These memtables are no longer accepting writes, but may
+	// still have reader references, thus are still potentially active. The DB
+	// will periodically check if these memtables are still active and then
+	// retire them and potentially recycle their arena.
+	activeMemtables []memtable.MemTable
+	// recycledArena is an atomic pointer to a used arena that can be used in
+	// the next memtable. This should be guaranteed to be reset by the caller of
+	// atomic.Pointer.Store().
+	recycledArena atomic.Pointer[arena.Arena]
 
+	// manifest tracks all state changes to the database files. Each update to
+	// the manifest creates a new manifest file that is immediately flushed to
+	// disk. Depending on the DB configuration, a certain number of manifest
+	// file versions will be retained.
+	manifest      *manifest.Manifest
 	dataDirectory *os.File
 	walDirectory  *os.File
 }
@@ -154,12 +180,12 @@ func (db *DB) GetPinned(key []byte) ([]byte, error) {
 	panic("not implemented")
 }
 
-func (db *DB) NewIterator() base.Iterator {
+func (db *DB) NewIterator() iterator.Iterator {
 	panic("not implemented")
 }
 
 // NewSnapshotIterator returns a new iterator on a snapshot.
-func (db *DB) NewSnapshotIterator() base.Iterator {
+func (db *DB) NewSnapshotIterator() iterator.Iterator {
 	panic("not implemented")
 }
 

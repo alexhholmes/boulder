@@ -2,6 +2,7 @@ package skiplist
 
 import (
 	"boulder/internal/arch"
+	"boulder/internal/arena"
 	"boulder/internal/base"
 )
 
@@ -39,7 +40,7 @@ type node struct {
 }
 
 func newNode(
-	a *base.Arena, height uint, key base.InternalKey, value []byte,
+	a *arena.Arena, height uint, key base.InternalKey, value []byte,
 ) (*node, error) {
 
 	if height < 1 || height > maxHeight {
@@ -61,7 +62,7 @@ func newNode(
 	return nd, err
 }
 
-func newRawNode(a *base.Arena, height, keySize, valueSize uint) (*node, error) {
+func newRawNode(a *arena.Arena, height, keySize, valueSize uint) (*node, error) {
 	// Compute the amount of the tower that will never be used, since the height
 	// is less than maxHeight.
 	unusedSize := (maxHeight - height) * linksSize
@@ -81,11 +82,11 @@ func newRawNode(a *base.Arena, height, keySize, valueSize uint) (*node, error) {
 	return nd, nil
 }
 
-func (n *node) getKey(arena *base.Arena) []byte {
+func (n *node) getKey(arena *arena.Arena) []byte {
 	return arena.GetBytes(n.keyOffset, n.keySize)
 }
 
-func (n *node) getValueBytes(arena *base.Arena) []byte {
+func (n *node) getValueBytes(arena *arena.Arena) []byte {
 	return arena.GetBytes(n.keyOffset+n.keySize, n.valueSize)
 }
 
