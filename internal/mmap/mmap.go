@@ -7,7 +7,9 @@ import (
 
 // New allocates a large contiguous chunk of memory using the OS syscall mmap.
 // This is manually managed memory that is not garbage collected by the Go
-// runtime. You must call Free with the buffer when finished.
+// runtime. You must call Free with the buffer when finished. Note that the
+// size of the returned buffer may not be the equal to `size` because the OS
+// will round the byte length up to a multiple of the system's page size.
 func New(size int) ([]byte, error) {
 	if size < 1 {
 		return nil, fmt.Errorf("mmap: invalid size; size must be greater than 0: %d", size)
