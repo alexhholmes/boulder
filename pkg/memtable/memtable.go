@@ -37,7 +37,7 @@ type MemTable struct {
 }
 
 func New(size uint) *MemTable {
-	// Align the size to the block size
+	// Round up the size to a multiple of the block size
 	if size < directio.BlockSize {
 		// Minimum; single disk block
 		size = directio.BlockSize

@@ -17,7 +17,7 @@ const (
 	linksSize     = uint(unsafe.Sizeof(links{}))
 	maxHeight     = uint(20)
 	pValue        = 1 / math.E
-	nodeAlignment = 4
+	nodeAlignment = uint(unsafe.Sizeof(arch.UintToArchSize(0)))
 )
 
 var probabilities [maxHeight]uint32
@@ -106,8 +106,8 @@ func (s *Skiplist) Reset(a *arena.Arena) {
 	headOffset := a.GetPointerOffset(unsafe.Pointer(head))
 	tailOffset := a.GetPointerOffset(unsafe.Pointer(tail))
 	for i := uint(0); i < maxHeight; i++ {
-		head.tower[i].nextOffset.Store(uint64(tailOffset))
-		tail.tower[i].prevOffset.Store(uint64(headOffset))
+		head.tower[i].nextOffset.Store(arch.UintToArchSize(tailOffset))
+		tail.tower[i].prevOffset.Store(arch.UintToArchSize(headOffset))
 	}
 
 	*s = Skiplist{
