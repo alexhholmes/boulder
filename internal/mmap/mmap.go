@@ -1,3 +1,7 @@
+// Package mmap is not used for allocating disk files in memory, but rather to
+// allocate large contiguous chunks of memory outside the Go runtime memory
+// allocator and garbage collection. This also has the benefit of lazily
+// allocating memory pages.
 package mmap
 
 import (
@@ -28,6 +32,10 @@ func New(size int) ([]byte, error) {
 	return data, nil
 }
 
+// Free releases the memory allocated by the OS with the mmap syscall. The
+// original []byte buffer must be passed back to this function. Do not attempt
+// to resize the []byte buffer with append, instead create a new buffer and
+// copy() from the old buffer.
 func Free(data []byte) error {
 	return syscall.Munmap(data)
 }

@@ -119,7 +119,7 @@ func Open(directory string, options ...Option) (db *DB, err error) {
 
 	db.dataDirectory = dataDirectory
 	db.walDirectory = walDirectory
-	db.memtable = memtable.New(make(chan<- memtable.Flush)) // TODO replace with real flusher channel
+	db.memtable = memtable.New()
 	db.openedAt = time.Now()
 
 	// Attempt to close resources on panic
@@ -169,15 +169,17 @@ func (db *DB) Close() error {
 	return nil
 }
 
-// Get returns a copy of the value.
+// Get returns a copied buffer of the original value.
 func (db *DB) Get(key []byte) (value []byte, err error) {
 	panic("not implemented")
 }
 
-// GetPinned returns a reference to the value in the buffer.
-func (db *DB) GetPinned(key []byte) ([]byte, error) {
-	panic("not implemented")
-}
+// GetPinned returns a reference to the value buffer stored in the buffer pool.
+// This pins the page in the buffer pool and can increase memory usage. This
+// is only suitable for use with very large values.
+// func (db *DB) GetPinned(key []byte) ([]byte, error) {
+// 	panic("not implemented")
+// }
 
 // func (db *DB) NewIterator() iterator.Iterator {
 // 	panic("not implemented")
@@ -196,22 +198,22 @@ func (db *DB) Set(key, value []byte) error {
 	panic("not implemented")
 }
 
-func (db *DB) RangeKeySet(key, value []byte) error {
-	panic("not implemented")
-}
-
-func (db *DB) Delete(key []byte) error {
-	panic("not implemented")
-}
-
-func (db *DB) SingleDelete(key []byte) error {
-	panic("not implemented")
-}
-
-func (db *DB) RangeKeyDelete(start, end []byte) error {
-	panic("not implemented")
-}
-
-func (db *DB) NewSnapshot() error {
-	panic("not implemented")
-}
+// func (db *DB) RangeKeySet(key, value []byte) error {
+// 	panic("not implemented")
+// }
+//
+// func (db *DB) Delete(key []byte) error {
+// 	panic("not implemented")
+// }
+//
+// func (db *DB) SingleDelete(key []byte) error {
+// 	panic("not implemented")
+// }
+//
+// func (db *DB) RangeKeyDelete(start, end []byte) error {
+// 	panic("not implemented")
+// }
+//
+// func (db *DB) NewSnapshot() error {
+// 	panic("not implemented")
+// }

@@ -5,14 +5,16 @@ import (
 	"unsafe"
 
 	"boulder/internal/arch"
+	"boulder/internal/mmap"
 )
 
 var ErrArenaFull = errors.New("allocation failed because arena is full")
 
 // Arena is a lock-free arena allocator.
 type Arena struct {
-	n   arch.AtomicUint
-	Buf []byte
+	n       arch.AtomicUint
+	Buf     []byte
+	mmapped bool
 }
 
 // NewArena allocates a new arena using the specified buffer as the backing
@@ -20,12 +22,20 @@ type Arena struct {
 // lifetime of the arena.
 func NewArena(size uint) *Arena {
 	a := &Arena{
-		Buf: make([]byte, size),
+		mmapped: true,
 	}
 
 	// We don't store data at position 0 to reserve offset=0 as a nil pointer
 	// and to simplify the index arithmetic.
 	a.n.Store(1)
+
+	buf, err := mmap.New(int(size))
+	if err != nil {
+		buf = make([]byte, size)
+		a.mmapped = false
+	}
+	a.Buf = buf
+
 	return a
 }
 
@@ -95,4 +105,12 @@ func (a *Arena) Cap() uint {
 // Reset sets the arena size to 1, without overwriting the old buffer data.
 func (a *Arena) Reset() {
 	a.n.Store(1)
+}
+
+// Close must be called when an arena is no longer used.
+func (a *Arena) Close() error {
+	if a.mmapped {
+		return mmap.Free(a.Buf)
+	}
+	return nil
 }

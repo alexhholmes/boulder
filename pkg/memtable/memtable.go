@@ -96,7 +96,20 @@ func (m *MemTable) Set(kv base.InternalKV) error {
 // Size returns the byte size of the memtable including padding bytes in the
 // arena.
 func (m *MemTable) Size() uint {
+	// Check if the underlying arena was released
+	if m.skiplist.Arena() == nil {
+		return 0
+	}
 	return m.skiplist.Size()
+}
+
+// Cap returns the byte size of the underlying arena buffer for this memtable.
+func (m *MemTable) Cap() uint {
+	// Check if the underlying arena was released
+	if m.skiplist.Arena() == nil {
+		return 0
+	}
+	return m.skiplist.Arena().Cap()
 }
 
 // IsActive returns false if the memtable has been flushed to disk and no
