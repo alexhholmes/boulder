@@ -6,11 +6,6 @@ import (
 	"boulder/internal/base"
 )
 
-func MaxNodeSize(keySize, valSize uint) uint {
-	const maxPadding = nodeAlignment - 1
-	return maxNodeSize + keySize + valSize + maxPadding
-}
-
 type links struct {
 	nextOffset arch.AtomicUint
 	prevOffset arch.AtomicUint
@@ -42,12 +37,11 @@ type node struct {
 func newNode(
 	a *arena.Arena, height uint, key base.InternalKey, value []byte,
 ) (*node, error) {
-
 	if height < 1 || height > maxHeight {
 		panic("height cannot be less than one or greater than the max height")
 	}
 
-	keySize := uint(len(key.UserKey))
+	keySize := uint(len(key.LogicalKey))
 	valueSize := uint(len(value))
 
 	nd, err := newRawNode(a, height, keySize, valueSize)
@@ -56,7 +50,7 @@ func newNode(
 	}
 
 	nd.keyTrailer = key.Trailer
-	copy(nd.getKey(a), key.UserKey)
+	copy(nd.getKey(a), key.LogicalKey)
 	copy(nd.getValueBytes(a), value)
 
 	return nd, err

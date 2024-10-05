@@ -12,7 +12,6 @@ import (
 
 	"boulder/internal/arena"
 	"boulder/internal/base"
-	"boulder/internal/iterator"
 	"boulder/pkg/manifest"
 	"boulder/pkg/memtable"
 	"boulder/pkg/wal"
@@ -180,18 +179,18 @@ func (db *DB) GetPinned(key []byte) ([]byte, error) {
 	panic("not implemented")
 }
 
-func (db *DB) NewIterator() iterator.Iterator {
-	panic("not implemented")
-}
+// func (db *DB) NewIterator() iterator.Iterator {
+// 	panic("not implemented")
+// }
 
 // NewSnapshotIterator returns a new iterator on a snapshot.
-func (db *DB) NewSnapshotIterator() iterator.Iterator {
-	panic("not implemented")
-}
+// func (db *DB) NewSnapshotIterator() iterator.Iterator {
+// 	panic("not implemented")
+// }
 
-func (db *DB) Apply(batch string) error {
-	panic("not implemented")
-}
+// func (db *DB) Apply(batch string) error {
+// 	panic("not implemented")
+// }
 
 func (db *DB) Set(key, value []byte) error {
 	panic("not implemented")
@@ -210,22 +209,6 @@ func (db *DB) SingleDelete(key []byte) error {
 }
 
 func (db *DB) RangeKeyDelete(start, end []byte) error {
-	panic("not implemented")
-}
-
-func (db *DB) ListGroups() error {
-	panic("not implemented")
-}
-
-func (db *DB) CreateGroup() error {
-	panic("not implemented")
-}
-
-func (db *DB) DropGroup() error {
-	panic("not implemented")
-}
-
-func (db *DB) DestroyGroup() error {
 	panic("not implemented")
 }
 

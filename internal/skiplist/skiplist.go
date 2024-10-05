@@ -33,7 +33,10 @@ func init() {
 	}
 }
 
-var ErrRecordExists = errors.New("record with this key already exists")
+var (
+	ErrArenaFull    = arena.ErrArenaFull
+	ErrRecordExists = errors.New("record with this key already exists")
+)
 
 // Skiplist is a fast, concurrent skiplist implementation that supports forward
 // and backward iteration. Keys and values are immutable once added to the skiplist
@@ -131,25 +134,15 @@ func (s *Skiplist) Size() uint {
 	return s.arena.Len()
 }
 
-// NewIter returns a new Iterator object. The lower and upper bound parameters
+// Iter returns a new Iterator object. The lower and upper bound parameters
 // control the range of keys the iterator will return. Specifying for nil for
 // lower or upper bound disables the check for that boundary. Note that lower
 // bound is not checked on {SeekGE,First} and upper bound is not check on
 // {SeekLT,Last}. The user is expected to perform that check. Note that it is
 // safe for an iterator to be copied by value.
-// func (s *Skiplist) NewIter(lower, upper []byte) *Iterator {
-// 	it := iterPool.Get().(*Iterator)
-// 	*it = Iterator{list: s, nd: s.head, lower: lower, upper: upper}
-// 	return it
-// }
-
-// NewFlushIter returns a new flushIterator, which is similar to an Iterator
-// but also sets the current number of the bytes that have been iterated
-// through.
-// func (s *Skiplist) NewFlushIter() base.Iterator {
-// 	return &flushIterator{
-// 		Iterator: Iterator{list: s, nd: s.head},
-// 	}
+// func (s *Skiplist) Iter(lower, upper []byte) *Iterator {
+// 	it := Iterator{list: s, nd: s.head, lower: lower, upper: upper}
+// 	return &it
 // }
 
 // Add adds a new key if it does not yet exist. If the key already exists, then
@@ -366,7 +359,7 @@ func (s *Skiplist) findSpliceForLevel(
 
 		offset, size := next.keyOffset, next.keySize
 		nextKey := s.arena.Buf[offset : offset+size]
-		cmp := bytes.Compare(key.UserKey, nextKey)
+		cmp := bytes.Compare(key.LogicalKey, nextKey)
 		if cmp < 0 {
 			// We are done for this level, since prev.key < key < next.key.
 			break
@@ -393,7 +386,7 @@ func (s *Skiplist) findSpliceForLevel(
 
 func (s *Skiplist) keyIsAfterNode(nd *node, key base.InternalKey) bool {
 	ndKey := s.arena.Buf[nd.keyOffset : nd.keyOffset+nd.keySize]
-	cmp := bytes.Compare(ndKey, key.UserKey)
+	cmp := bytes.Compare(ndKey, key.LogicalKey)
 	if cmp < 0 {
 		return true
 	}

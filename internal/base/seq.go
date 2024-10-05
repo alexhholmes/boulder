@@ -20,19 +20,7 @@ import "sync/atomic"
 // keys with lower sequence numbers exist.
 type SeqNum uint64
 
-const (
-	// SeqNumZero is the zero sequence number, set by compactions if they can
-	// guarantee there are no keys underneath an internal key.
-	SeqNumZero SeqNum = 0
-	// SeqNumStart is the first sequence number assigned to a key. Sequence
-	// numbers 1-9 are reserved for potential future use.
-	SeqNumStart SeqNum = 10
-	// SeqNumMax is the largest valid sequence number.
-	SeqNumMax SeqNum = 1<<56 - 1
-	// SeqNumBatchBit is set on batch sequence numbers which prevents those
-	// entries from being excluded from iteration.
-	SeqNumBatchBit SeqNum = 1 << 55
-)
+const SeqNumMax = SeqNum(^uint64(0) >> 8)
 
 type AtomicSeqNum struct {
 	value atomic.Uint64

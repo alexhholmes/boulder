@@ -7,9 +7,7 @@ import (
 	"boulder/internal/arch"
 )
 
-var (
-	ErrArenaFull = errors.New("allocation failed because arena is full")
-)
+var ErrArenaFull = errors.New("allocation failed because arena is full")
 
 // Arena is a lock-free arena allocator.
 type Arena struct {
@@ -31,7 +29,11 @@ func NewArena(size uint) *Arena {
 	return a
 }
 
-func (a *Arena) Allocate(size, overflow uint, alignment uint) (offset, padded uint, err error) {
+func (a *Arena) Allocate(size, overflow, alignment uint) (
+	offset,
+	padded uint,
+	err error,
+) {
 	// Verify that the arena isn't already full
 	originalSize := a.n.Load()
 	if uint(originalSize) > uint(len(a.Buf)) {
@@ -48,25 +50,8 @@ func (a *Arena) Allocate(size, overflow uint, alignment uint) (offset, padded ui
 	}
 
 	// Return the aligned offset
-	offset = (newSize - padded + uint(alignment)) & ^(alignment - 1)
+	offset = (newSize - padded + alignment) & ^(alignment - 1)
 	return offset, padded, nil
-}
-
-// Len returns the number of bytes allocated by the arena, including the
-// reserved 0th byte and padding.
-func (a *Arena) Len() uint {
-	s := a.n.Load()
-	return uint(s)
-}
-
-// Cap returns the length of the underlying buffer.
-func (a *Arena) Cap() uint {
-	return uint(len(a.Buf))
-}
-
-// Reset sets the arena size to 1, without overwriting the old buffer data.
-func (a *Arena) Reset() {
-	a.n.Store(1)
 }
 
 func (a *Arena) GetBytes(offset uint, size uint) []byte {
@@ -93,4 +78,21 @@ func (a *Arena) GetPointerOffset(ptr unsafe.Pointer) uint {
 	}
 
 	return uint(uintptr(ptr) - uintptr(unsafe.Pointer(&a.Buf[0])))
+}
+
+// Len returns the number of bytes allocated by the arena, including the
+// reserved 0th byte and padding.
+func (a *Arena) Len() uint {
+	s := a.n.Load()
+	return uint(s)
+}
+
+// Cap returns the length of the underlying buffer.
+func (a *Arena) Cap() uint {
+	return uint(len(a.Buf))
+}
+
+// Reset sets the arena size to 1, without overwriting the old buffer data.
+func (a *Arena) Reset() {
+	a.n.Store(1)
 }

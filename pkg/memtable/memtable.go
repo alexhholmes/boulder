@@ -2,8 +2,6 @@ package memtable
 
 import (
 	"errors"
-	"sync"
-	"sync/atomic"
 
 	"github.com/ncw/directio"
 
@@ -14,13 +12,19 @@ import (
 )
 
 // MemTable is a memory table that stores key-value pairs in sorted order
-// using a red-black tree.
+// using a skip-list.
 type MemTable struct {
 	// seqNum is the sequence number at the time the memtable was created. This
 	// is guaranteed to be less than or equal to the sequence number of any
 	// record written to the memtable.
 	seqNum   base.SeqNum
 	skiplist *skiplist.Skiplist
+
+	// wal (write-ahead log) is a disk file that is every write operation is
+	// committed to before being added to the memtable. Each memtable has its
+	// own WAL that can be garbage-collected once the memtable has been written
+	// to an SSTable on disk.
+	// wal *wal.WAL
 
 	// references tracks the number of readers or writers to the memtable. When
 	// the number of references drops to zero, the memtable can be safely
@@ -30,9 +34,6 @@ type MemTable struct {
 	// added to the memtable, but this table will exist indefinitely until the
 	// referencing readers complete.
 	references arch.AtomicUint
-	// flushing indicates that the memtable is full and is no longer accepting
-	// writes.
-	flushing atomic.Bool
 }
 
 func New(size uint) *MemTable {
@@ -53,12 +54,13 @@ func New(size uint) *MemTable {
 
 	// A newly created memtable is considered active and has a reference count
 	// of 1. The reference count will be decremented when the memtable is
-	// flushed to disk.
+	// flushed to disk. TODO
 	m.references.Store(1)
 
 	return m
 }
 
+// NewFromArena uses recycles an arena from a retired Memtable.
 func NewFromArena(a *arena.Arena) *MemTable {
 	return &MemTable{
 		skiplist: skiplist.NewSkiplist(a),
@@ -66,19 +68,19 @@ func NewFromArena(a *arena.Arena) *MemTable {
 }
 
 func (m *MemTable) Set(kv base.InternalKV) error {
-	if m.flushing.Load() {
-		return ErrMemtableFlushed
-	}
+	// if m.flushing.Load() {
+	// 	return ErrMemtableFlushed
+	// } TODO
 
 	err := m.skiplist.Add(kv.K, kv.V)
 	if err != nil {
-		if errors.Is(err, arena.ErrArenaFull) {
+		if errors.Is(err, skiplist.ErrArenaFull) {
 			// Skiplist is full, flush to disk, caller should create a new
 			// memory table and try again.
-			if m.flushing.CompareAndSwap(false, true) {
-				// Don't want to flush the same memtable twice.
-				m.Flush()
-			}
+			// if m.flushing.CompareAndSwap(false, true) {
+			// 	// Don't want to flush the same memtable twice.
+			// 	m.Flush() TODO
+			// }
 			return ErrMemtableFlushed
 		}
 		if errors.Is(err, skiplist.ErrRecordExists) {
@@ -89,26 +91,6 @@ func (m *MemTable) Set(kv base.InternalKV) error {
 		return err
 	}
 	return nil
-}
-
-// Flush is either called by the memtable when an insertion fails because it is
-// full or by the DB for a preemptive flush.
-func (m *MemTable) Flush() {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// The flush function will run in a separate goroutine and signal the
-	// wait group when the flush is complete.
-	// m.flush(, wg)
-
-	// Wait for the flush to complete before decrementing the reference count.
-	// This does not mean the memtable is no longer active, but that the
-	// memtable has been flushed to disk. Active readers can still hold a
-	// reference to the memtable.
-	go func() {
-		wg.Wait()
-		m.references.Add(-1)
-	}()
 }
 
 // Size returns the byte size of the memtable including padding bytes in the

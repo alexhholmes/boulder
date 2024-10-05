@@ -16,7 +16,7 @@ import (
 // node struct dipping into unallocated memory. This test is only run when the
 // race build tag is provided.
 func TestNodeArenaEnd(t *testing.T) {
-	ikey := base2.InternalKey{UserKey: []byte("a")}
+	ikey := base2.InternalKey{LogicalKey: []byte("a")}
 	val := []byte("b")
 
 	// Rather than hardcode an arena size at just the right size, try
