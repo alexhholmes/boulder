@@ -19,7 +19,7 @@ func OpenFile(name string, flag int, perm os.FileMode) (file *os.File, err error
 		return
 	}
 
-	// Set F_NOCACHE to avoid OS caching
+	// Add F_NOCACHE to avoid OS caching
 	_, _, e1 := syscall.Syscall(syscall.SYS_FCNTL, uintptr(file.Fd()), syscall.F_NOCACHE, 1)
 	if e1 != 0 {
 		err = fmt.Errorf("Failed to set F_NOCACHE: %s", e1)

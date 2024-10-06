@@ -1,17 +1,10 @@
 package storage
 
-import (
-	"io"
-	"sync"
-)
-
-// Flusher is an interface that defines a type that can be iterated over and
-// flushed as bytes to disk. Types implementing this interface simply provide
-// raw bytes of the internal data structure to be written to disk. The caller
-// is responsible for any headers, footers, or other metadata that is required
-// by the file format.
-//
-// Implementing types should make this spawn a goroutine to write the data.
+// Flusher is an interface for objects that can be flushed to disk. It is
+// expected that the object is in a read-only state when Flush is called.
 type Flusher interface {
-	Flush(w io.WriteCloser) (flushed *sync.WaitGroup)
+	Flush()
+	AvailableBytes() uint
+	UsedBytes() uint
+	TotalBytes() uint
 }

@@ -19,7 +19,7 @@ func New(size int) ([]byte, error) {
 		return nil, fmt.Errorf("mmap: invalid size; size must be greater than 0: %d", size)
 	}
 
-	// Set `fd` to -1 because we are using `syscall.MAP_ANON`. This indicates
+	// Add `fd` to -1 because we are using `syscall.MAP_ANON`. This indicates
 	// that there is no backing disk file.
 	data, err := syscall.Mmap(-1, 0, size,
 		syscall.PROT_READ|syscall.PROT_WRITE,
