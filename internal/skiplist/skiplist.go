@@ -141,7 +141,7 @@ func (s *Skiplist) Size() uint {
 // bound is not checked on {SeekGE,First} and upper bound is not check on
 // {SeekLT,Last}. The user is expected to perform that check. Note that it is
 // safe for an iterator to be copied by value.
-func (s *Skiplist) Iter(lower, upper []byte) *iterator.Iterator {
+func (s *Skiplist) Iter(lower, upper []byte, close func()) iterator.Iterator {
 	// TODO
 	return nil
 }
@@ -149,9 +149,13 @@ func (s *Skiplist) Iter(lower, upper []byte) *iterator.Iterator {
 // FlushIter returns an iterator that can be used to iterate over all the keys
 // in the skiplist in order. This is useful when the skiplist is being flushed
 // to disk.
-func (s *Skiplist) FlushIter() *iterator.Iterator {
-	// TODO
-	return nil
+func (s *Skiplist) FlushIter() iterator.Iterator {
+	return &FlushIterator{
+		Iterator{
+			list: s,
+			nd:   s.head,
+		},
+	}
 }
 
 // Add adds a new key if it does not yet exist. If the key already exists, then

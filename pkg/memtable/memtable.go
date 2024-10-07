@@ -11,6 +11,7 @@ import (
 	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/internal/compare"
+	"boulder/internal/iterator"
 	"boulder/internal/skiplist"
 	"boulder/pkg/storage"
 	"boulder/pkg/wal"
@@ -79,7 +80,7 @@ func New(size uint, wal *wal.WAL, cmp compare.Compare) *MemTable {
 	return m
 }
 
-// NewFromArena uses recycles an arena from a retired Memtable.
+// NewFromArena recycles an arena from a retired Memtable.
 func NewFromArena(a *arena.Arena, cmp compare.Compare) *MemTable {
 	a.Reset()
 	return &MemTable{
@@ -105,18 +106,26 @@ func (m *MemTable) Add(kv base.InternalKV) error {
 
 	err := m.skiplist.Add(kv.K, kv.V)
 	if err != nil {
-		if errors.Is(err, skiplist.ErrArenaFull) {
+		switch {
+		case errors.Is(err, skiplist.ErrArenaFull):
 			m.readOnly.Store(true)
 			return ErrMemtableFull
-		}
-		if errors.Is(err, skiplist.ErrRecordExists) {
+		case errors.Is(err, skiplist.ErrRecordExists):
 			// Duplicate key, caller should increment the sequence number
 			// and try again.
 			return ErrRecordExists
+		default:
+			return err
 		}
-		return err
 	}
 	return nil
+}
+
+func (m *MemTable) Iter(lower []byte, upper []byte) iterator.Iterator {
+	m.references.Add(1)
+	return m.skiplist.Iter(lower, upper, func() {
+		m.references.Add(-1)
+	})
 }
 
 var (
