@@ -34,7 +34,7 @@ type Iterator struct {
 	// Iterator holds a reference to. This will decrement the number of references to
 	// the memtable. This prevents a memtable from being deleted while readers are still
 	// using it, even if it has already been written to an SSTable on disk.
-	close func() error
+	close func()
 }
 
 var _ iterator.Iterator = (*Iterator)(nil)
@@ -101,9 +101,9 @@ func (it *Iterator) decodeKey() {
 }
 
 func (it *Iterator) Close() error {
-	err := it.close()
+	it.close()
 	*it = Iterator{}
-	return err
+	return nil
 }
 
 // FlushIterator is intended to be used by the memtable to iterate over the
@@ -114,27 +114,27 @@ type FlushIterator struct {
 
 var _ iterator.Iterator = (*FlushIterator)(nil)
 
-func (it *FlushIterator) First() *base.InternalKV {
-	return it.Iterator.First()
+func (fl *FlushIterator) First() *base.InternalKV {
+	return fl.Iterator.First()
 }
 
-func (it *FlushIterator) Last() *base.InternalKV {
+func (fl *FlushIterator) Last() *base.InternalKV {
 	panic("boulder: Last unimplemented")
 }
 
-func (it *FlushIterator) Next() *base.InternalKV {
-	it.nd = it.list.getNext(it.nd, 0)
-	if it.nd == it.list.tail {
+func (fl *FlushIterator) Next() *base.InternalKV {
+	fl.nd = fl.list.getNext(fl.nd, 0)
+	if fl.nd == fl.list.tail {
 		return nil
 	}
-	it.decodeKey()
-	return &it.kv
+	fl.decodeKey()
+	return &fl.kv
 }
 
-func (it *FlushIterator) Prev() *base.InternalKV {
+func (fl *FlushIterator) Prev() *base.InternalKV {
 	panic("boulder: Prev unimplemented")
 }
 
-func (it *FlushIterator) Close() error {
+func (fl *FlushIterator) Close() error {
 	return nil
 }

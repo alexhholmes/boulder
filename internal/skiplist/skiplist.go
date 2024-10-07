@@ -146,8 +146,13 @@ func (s *Skiplist) Size() uint {
 // {SeekLT,Last}. The user is expected to perform that check. Note that it is
 // safe for an iterator to be copied by value.
 func (s *Skiplist) Iter(lower, upper []byte, close func()) iterator.Iterator {
-	// TODO
-	return nil
+	return &Iterator{
+		list:  s,
+		nd:    s.head,
+		lower: lower,
+		upper: upper,
+		close: close,
+	}
 }
 
 // FlushIter returns an iterator that can be used to iterate over all the keys
