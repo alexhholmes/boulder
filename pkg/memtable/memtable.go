@@ -39,7 +39,11 @@ type MemTable struct {
 	// it is active. Once the memtable has been flushed to disk, the reference
 	// count will be decremented by one. Once flushed, no new references will be
 	// added to the memtable, but this table will exist indefinitely until the
-	// referencing readers complete.
+	// referencing readers are closed. It is up to the DB to periodically check
+	// Memtable.IsActive() and retire the memtable if it is no longer active.
+	// Additionally, the DB will need provide a callback in the function it
+	// passes to Memtable.Flush() to signal that the memtable has been flushed
+	// and all readers should be directed to the on-disk SSTable.
 	references arch.AtomicUint
 	// writers is the number of writers that are currently writing to the
 	// memtable. This is tracked to prevent the memtable from being flushed to
@@ -170,10 +174,10 @@ var _ storage.Flusher = (*MemTable)(nil)
 
 // Flush writes the memtable to disk as an SSTable. This should be called by
 // the DB when the memtable is full and no longer able to accept writes or if
-// an early flush is necessary. This is an idempotent operation.
-// The DB must handle this because it needs to do extra bookkeeping for the
-// manifest and the active memtables. It also may provide additional options
-// for the disk operation rate limiting and priority.
+// an early flush is necessary. This is an idempotent operation. The DB must
+// handle this because it needs to do extra bookkeeping for the manifest and the
+// active memtables. It also may provide additional options for the disk
+// operation rate limiting and priority.
 func (m *MemTable) Flush(flush func(iterator *iterator.Iterator)) {
 	if m.readOnly.CompareAndSwap(false, true) {
 		go func() {

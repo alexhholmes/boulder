@@ -14,6 +14,7 @@ import (
 	"boulder/internal/base"
 	"boulder/pkg/manifest"
 	"boulder/pkg/memtable"
+	"boulder/pkg/wal"
 )
 
 const (
@@ -45,6 +46,9 @@ type DB struct {
 	// the next memtable. This should be guaranteed to be reset by the caller of
 	// atomic.Pointer.Store().
 	recycledArena atomic.Pointer[arena.Arena]
+	// We keep track of the current wal so that we can update the manifest file
+	// when the memtable is rotated.
+	wal *wal.WAL
 
 	// manifest tracks all state changes to the database files. Each update to
 	// the manifest creates a new manifest file that is immediately flushed to
@@ -54,10 +58,6 @@ type DB struct {
 	dataDirectory *os.File
 	walDirectory  *os.File
 }
-
-// TODO
-// var _ Reader = (*DB)(nil)
-// var _ Writer = (*DB)(nil)
 
 // Open opens the database in read-write mode. If the database directory does
 // not exist or is empty, a new database is created. If the database directory
@@ -117,7 +117,7 @@ func Open(directory string, options ...Option) (db *DB, err error) {
 
 	db.dataDirectory = dataDirectory
 	db.walDirectory = walDirectory
-	db.memtable = memtable.New()
+	db.memtable = memtable.New(db.wal)
 	db.openedAt = time.Now()
 
 	// Attempt to close resources on panic
