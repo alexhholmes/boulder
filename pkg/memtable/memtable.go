@@ -84,7 +84,7 @@ func New(size uint, wal *wal.WAL, cmp compare.Compare) *MemTable {
 func NewFromArena(a *arena.Arena, cmp compare.Compare) *MemTable {
 	a.Reset()
 	return &MemTable{
-		skiplist: skiplist.NewSkiplist(a),
+		skiplist: skiplist.NewSkiplist(a, cmp),
 		cmp:      cmp,
 	}
 }
@@ -137,7 +137,7 @@ var (
 func (m *MemTable) Empty() bool {
 	once.Do(func() {
 		a := arena.NewArena(16 << 10 /* 16 KB */)
-		_ = skiplist.NewSkiplist(a)
+		_ = skiplist.NewSkiplist(a, m.cmp)
 		minimumBytes = a.Len()
 	})
 
