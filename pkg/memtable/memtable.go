@@ -11,6 +11,7 @@ import (
 	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/internal/compare"
+	"boulder/internal/iterator"
 	"boulder/internal/skiplist"
 	"boulder/pkg/storage"
 	"boulder/pkg/wal"
@@ -43,15 +44,9 @@ type MemTable struct {
 	// readOnly indicates that the memtable is no longer accepting writes as it
 	// is full and is being flushed to disk.
 	readOnly atomic.Bool
-	// flushed indicates that the memtable is being written to disk, but it may
-	// still be active if there are readers holding a reference to it. The
-	// memtable is not considered fully flushed to disk until the references
-	// count is decremented by one. However, any reader references will keep
-	// this memtable from being garbage-collected.
-	flushed atomic.Bool
 }
 
-func New(size uint, cmp compare.Compare) *MemTable {
+func New(size uint, wal *wal.WAL, cmp compare.Compare) *MemTable {
 	// Round up the size to a multiple of the block size
 	if size < directio.BlockSize {
 		// Minimum; single disk block
@@ -65,6 +60,7 @@ func New(size uint, cmp compare.Compare) *MemTable {
 
 	m := &MemTable{
 		skiplist: skiplist.NewSkiplist(arena.NewArena(size)),
+		wal:      wal,
 		cmp:      cmp,
 	}
 
@@ -92,16 +88,13 @@ func (m *MemTable) Add(kv base.InternalKV) error {
 	if m.readOnly.Load() {
 		return ErrMemtableFlushed
 	}
+	if kv.SeqNum() < m.seqNum {
+		return ErrInvalidSeqNum
+	}
 
 	err := m.skiplist.Add(kv.K, kv.V)
 	if err != nil {
 		if errors.Is(err, skiplist.ErrArenaFull) {
-			// Skiplist is full, flush to disk, caller should create a new
-			// memory table and try again.
-			if m.flushed.CompareAndSwap(false, true) {
-				// Don't want to flush the same memtable twice.
-				m.Flush()
-			}
 			return ErrMemtableFlushed
 		}
 		if errors.Is(err, skiplist.ErrRecordExists) {
@@ -154,20 +147,33 @@ func (m *MemTable) IsActive() bool {
 // its reference from the memtable. This is meant for the reuse of the arena for
 // a future memtable. This returns nil if the memtable is still active or if the
 // arena has already been released.
-func (m *MemTable) ReleaseArena() *arena.Arena {
-	if !m.IsActive() && m.flushed.Load() {
-		return nil
+func (m *MemTable) ReleaseArena() (*arena.Arena, error) {
+	if !m.IsActive() {
+		return nil, ErrMemtableActive
 	}
 
 	a := m.skiplist.Arena()
 	m.skiplist.Reset(nil)
-	return a
+	return a, nil
 }
 
 var _ storage.Flusher = (*MemTable)(nil)
 
-func (m *MemTable) Flush() {
-	// TODO
+// Flush writes the memtable to disk as an SSTable. This should be called by
+// the DB when the memtable is full and no longer able to accept writes or if
+// an early flush is necessary. This is an idempotent operation.
+// The DB must handle this because it needs to do extra bookkeeping for the
+// manifest and the active memtables. It also may provide additional options
+// for the disk operation rate limiting and priority.
+func (m *MemTable) Flush(flush func(iterator *iterator.Iterator)) {
+	if m.readOnly.CompareAndSwap(false, true) {
+		go func() {
+			// This flush operation will run independently of the DB goroutine
+			// and can be rate-limited or prioritized by the DB.
+			flush(m.skiplist.FlushIter())
+			m.references.Add(-1)
+		}()
+	}
 }
 
 var (

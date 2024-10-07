@@ -12,10 +12,13 @@ import (
 
 func TestMemtableFull(t *testing.T) {
 	var err error
-	memtable := New(directio.BlockSize*8, compare.SimpleCompare)
+	memtable := New(directio.BlockSize*8, nil, compare.SimpleCompare)
 	defer func() {
 		// Release mmap allocation for arena
-		_ = memtable.ReleaseArena().Close()
+		a, err := memtable.ReleaseArena()
+		assert.NoError(t, err)
+		err = a.Close()
+		assert.NoError(t, err)
 	}()
 
 	for i := 0; i < directio.BlockSize; i++ {
@@ -36,10 +39,13 @@ func TestMemtableFull(t *testing.T) {
 }
 
 func TestRecordExistsError(t *testing.T) {
-	memtable := New(directio.BlockSize, compare.SimpleCompare)
+	memtable := New(directio.BlockSize, nil, compare.SimpleCompare)
 	defer func() {
 		// Release mmap allocation for arena
-		_ = memtable.ReleaseArena().Close()
+		a, err := memtable.ReleaseArena()
+		assert.NoError(t, err)
+		err = a.Close()
+		assert.NoError(t, err)
 	}()
 
 	key := base.MakeInternalKey([]byte{}, base.SeqNum(1), base.InternalKeyKindSet)
@@ -56,10 +62,13 @@ func TestRecordExistsError(t *testing.T) {
 }
 
 func TestEmptyMemtable(t *testing.T) {
-	memtable := New(directio.BlockSize, compare.SimpleCompare)
+	memtable := New(directio.BlockSize, nil, compare.SimpleCompare)
 	defer func() {
 		// Release mmap allocation for arena
-		_ = memtable.ReleaseArena().Close()
+		a, err := memtable.ReleaseArena()
+		assert.NoError(t, err)
+		err = a.Close()
+		assert.NoError(t, err)
 	}()
 
 	assert.True(t, memtable.Empty())

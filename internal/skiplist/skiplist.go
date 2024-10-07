@@ -10,6 +10,7 @@ import (
 	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/internal/fastrand"
+	"boulder/internal/iterator"
 )
 
 const (
@@ -140,10 +141,18 @@ func (s *Skiplist) Size() uint {
 // bound is not checked on {SeekGE,First} and upper bound is not check on
 // {SeekLT,Last}. The user is expected to perform that check. Note that it is
 // safe for an iterator to be copied by value.
-// func (s *Skiplist) Iter(lower, upper []byte) *Iterator {
-// 	it := Iterator{list: s, nd: s.head, lower: lower, upper: upper}
-// 	return &it
-// }
+func (s *Skiplist) Iter(lower, upper []byte) *iterator.Iterator {
+	// TODO
+	return nil
+}
+
+// FlushIter returns an iterator that can be used to iterate over all the keys
+// in the skiplist in order. This is useful when the skiplist is being flushed
+// to disk.
+func (s *Skiplist) FlushIter() *iterator.Iterator {
+	// TODO
+	return nil
+}
 
 // Add adds a new key if it does not yet exist. If the key already exists, then
 // Add returns ErrRecordExists. If there isn't enough room in the arena, then
