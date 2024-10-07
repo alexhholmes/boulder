@@ -14,7 +14,6 @@ import (
 	"boulder/internal/base"
 	"boulder/pkg/manifest"
 	"boulder/pkg/memtable"
-	"boulder/pkg/wal"
 )
 
 const (
@@ -36,7 +35,6 @@ type DB struct {
 	// database. The memtable is temporary, and once it is full, it is flushed
 	// to disk.
 	memtable *memtable.MemTable
-	wal      *wal.WAL
 	// activeMemtables is a list of memtables that are flushing or have been
 	// flushed to disk. These memtables are no longer accepting writes, but may
 	// still have reader references, thus are still potentially active. The DB
@@ -195,17 +193,63 @@ func (db *DB) Get(key []byte) (value []byte, err error) {
 // }
 
 func (db *DB) Set(key, value []byte) error {
-	panic("not implemented")
+	kv := base.InternalKV{
+		K: base.MakeInternalKey(key, db.seqNum.Load(), base.InternalKeyKindSet),
+		V: value,
+	}
+	err := db.memtable.Add(kv)
+	if err != nil {
+		if errors.Is(err, memtable.ErrMemtableFlushed) {
+			// TODO handle memtable flush replacement
+			return nil
+		}
+		if errors.Is(err, memtable.ErrMemtableFull) {
+			// TODO handle memtable flush replacement
+		}
+		if errors.Is(err, memtable.ErrRecordExists) {
+			// Increment sequence number and try again
+			db.seqNum.Add(1)
+			return db.Set(key, value)
+		}
+		if errors.Is(err, memtable.ErrInvalidSeqNum) {
+			panic("invalid sequence number")
+		}
+		return err
+	}
+	return nil
 }
 
 // func (db *DB) RangeKeySet(key, value []byte) error {
 // 	panic("not implemented")
 // }
-//
-// func (db *DB) Delete(key []byte) error {
-// 	panic("not implemented")
-// }
-//
+
+func (db *DB) Delete(key []byte) error {
+	kv := base.InternalKV{
+		K: base.MakeInternalKey(key, db.seqNum.Load(), base.InternalKeyKindDelete),
+		V: nil,
+	}
+	err := db.memtable.Add(kv)
+	if err != nil {
+		if errors.Is(err, memtable.ErrMemtableFlushed) {
+			// TODO handle memtable flush replacement
+			return nil
+		}
+		if errors.Is(err, memtable.ErrMemtableFull) {
+			// TODO handle memtable flush replacement
+		}
+		if errors.Is(err, memtable.ErrRecordExists) {
+			// Increment sequence number and try again
+			db.seqNum.Add(1)
+			return db.Delete(key)
+		}
+		if errors.Is(err, memtable.ErrInvalidSeqNum) {
+			panic("invalid sequence number")
+		}
+		return err
+	}
+	return nil
+}
+
 // func (db *DB) SingleDelete(key []byte) error {
 // 	panic("not implemented")
 // }

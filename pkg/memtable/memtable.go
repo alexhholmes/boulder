@@ -89,15 +89,13 @@ func NewFromArena(a *arena.Arena, cmp compare.Compare) *MemTable {
 // all writes including set, delete, and single delete operations because the
 // trailer of a delete operation acts as a tombstone.
 func (m *MemTable) Add(kv base.InternalKV) error {
-	m.writers.Add(1)
-	defer m.writers.Done()
-
 	if kv.SeqNum() < m.seqNum {
 		return ErrInvalidSeqNum
 	}
 
-	// Add a check in case the memtable was flushed while when incrementing the
-	// writer count.
+	m.writers.Add(1)
+	defer m.writers.Done()
+
 	if m.readOnly.Load() {
 		return ErrMemtableFlushed
 	}
@@ -105,7 +103,8 @@ func (m *MemTable) Add(kv base.InternalKV) error {
 	err := m.skiplist.Add(kv.K, kv.V)
 	if err != nil {
 		if errors.Is(err, skiplist.ErrArenaFull) {
-			return ErrMemtableFlushed
+			m.readOnly.Store(true)
+			return ErrMemtableFull
 		}
 		if errors.Is(err, skiplist.ErrRecordExists) {
 			// Duplicate key, caller should increment the sequence number
