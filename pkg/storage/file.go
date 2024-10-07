@@ -49,8 +49,8 @@ func NewWriter(name string, flag int, options ...Option) (*Writer, error) {
 	go func() {
 		for {
 			select {
-			case buf := <-writer:
-				_, err := w.write(buf)
+			// case buf := <-writer:
+			// 	 _, err := w.write(buf)
 			case <-done:
 				wg.Done()
 				return
@@ -70,6 +70,7 @@ func NewWriter(name string, flag int, options ...Option) (*Writer, error) {
 }
 
 func (f *Writer) write(buf []byte) (n int, err error) {
+	return 0, nil
 
 }
 

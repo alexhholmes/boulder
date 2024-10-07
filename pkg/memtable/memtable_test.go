@@ -7,11 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"boulder/internal/base"
+	"boulder/internal/compare"
 )
 
 func TestMemtableFull(t *testing.T) {
 	var err error
-	memtable := New(directio.BlockSize * 8)
+	memtable := New(directio.BlockSize*8, compare.SimpleCompare)
 	defer func() {
 		// Release mmap allocation for arena
 		_ = memtable.ReleaseArena().Close()
@@ -24,6 +25,7 @@ func TestMemtableFull(t *testing.T) {
 			V: []byte{1, 0, 1, 0, 1, 0, 1},
 		}
 
+		t.Logf("Adding key %d", i)
 		err = memtable.Add(kv)
 		if err != nil {
 			break
@@ -34,7 +36,7 @@ func TestMemtableFull(t *testing.T) {
 }
 
 func TestRecordExistsError(t *testing.T) {
-	memtable := New(directio.BlockSize * 8)
+	memtable := New(directio.BlockSize, compare.SimpleCompare)
 	defer func() {
 		// Release mmap allocation for arena
 		_ = memtable.ReleaseArena().Close()
@@ -51,4 +53,26 @@ func TestRecordExistsError(t *testing.T) {
 
 	err = memtable.Add(kv)
 	assert.ErrorIs(t, err, ErrRecordExists)
+}
+
+func TestEmptyMemtable(t *testing.T) {
+	memtable := New(directio.BlockSize, compare.SimpleCompare)
+	defer func() {
+		// Release mmap allocation for arena
+		_ = memtable.ReleaseArena().Close()
+	}()
+
+	assert.True(t, memtable.Empty())
+
+	key := base.MakeInternalKey([]byte{}, base.SeqNum(1), base.InternalKeyKindSet)
+	kv := base.InternalKV{
+		K: key,
+		V: []byte{},
+	}
+
+	err := memtable.Add(kv)
+	assert.NoError(t, err)
+	assert.False(t, memtable.Empty())
+
+	// TODO assert false after deleting a key
 }

@@ -4,7 +4,4 @@ package storage
 // expected that the object is in a read-only state when Flush is called.
 type Flusher interface {
 	Flush()
-	AvailableBytes() uint
-	UsedBytes() uint
-	TotalBytes() uint
 }

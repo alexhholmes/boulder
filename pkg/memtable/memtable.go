@@ -10,15 +10,10 @@ import (
 	"boulder/internal/arch"
 	"boulder/internal/arena"
 	"boulder/internal/base"
+	"boulder/internal/compare"
 	"boulder/internal/skiplist"
 	"boulder/pkg/storage"
 	"boulder/pkg/wal"
-)
-
-var (
-	// once is used to initialize the size of an empty skiplist arena.
-	once         sync.Once
-	minimumBytes uint
 )
 
 // MemTable is a memory table that stores key-value pairs in sorted order
@@ -29,6 +24,7 @@ type MemTable struct {
 	// record written to the memtable.
 	seqNum   base.SeqNum
 	skiplist *skiplist.Skiplist
+	cmp      compare.Compare
 
 	// wal (write-ahead log) is a disk file that is every write operation is
 	// committed to before being added to the memtable. Each memtable has its
@@ -55,7 +51,7 @@ type MemTable struct {
 	flushed atomic.Bool
 }
 
-func New(size uint) *MemTable {
+func New(size uint, cmp compare.Compare) *MemTable {
 	// Round up the size to a multiple of the block size
 	if size < directio.BlockSize {
 		// Minimum; single disk block
@@ -69,6 +65,7 @@ func New(size uint) *MemTable {
 
 	m := &MemTable{
 		skiplist: skiplist.NewSkiplist(arena.NewArena(size)),
+		cmp:      cmp,
 	}
 
 	// A newly created memtable is considered active and has a reference count
@@ -80,10 +77,11 @@ func New(size uint) *MemTable {
 }
 
 // NewFromArena uses recycles an arena from a retired Memtable.
-func NewFromArena(a *arena.Arena) *MemTable {
+func NewFromArena(a *arena.Arena, cmp compare.Compare) *MemTable {
 	a.Reset()
 	return &MemTable{
 		skiplist: skiplist.NewSkiplist(a),
+		cmp:      cmp,
 	}
 }
 
@@ -168,24 +166,15 @@ func (m *MemTable) ReleaseArena() *arena.Arena {
 
 var _ storage.Flusher = (*MemTable)(nil)
 
-// Flush may be called at any time by the database or immediately by the
-// memtable when it is full. It is up to the caller to manage the disk write
-// priority of the memtable bytes through the provided flush function.
 func (m *MemTable) Flush() {
 	// TODO
 }
 
-func (m *MemTable) AvailableBytes() uint {
-	return m.Cap() - m.Size()
-}
-
-func (m *MemTable) UsedBytes() uint {
-	return m.Size()
-}
-
-func (m *MemTable) TotalBytes() uint {
-	return m.Cap()
-}
+var (
+	// once is used to initialize the size of an empty skiplist arena.
+	once         sync.Once
+	minimumBytes uint
+)
 
 func calculateMinimumBytes() {
 	a := arena.NewArena(16 << 10 /* 16 KB */)

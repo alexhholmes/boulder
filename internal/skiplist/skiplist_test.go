@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"boulder/internal/arena"
-	base2 "boulder/internal/base"
+	"boulder/internal/base"
 )
 
 // TestNodeArenaEnd tests allocating a node at the boundary of an arena. In Go
@@ -16,7 +16,7 @@ import (
 // node struct dipping into unallocated memory. This test is only run when the
 // race build tag is provided.
 func TestNodeArenaEnd(t *testing.T) {
-	ikey := base2.InternalKey{LogicalKey: []byte("a")}
+	ikey := base.InternalKey{LogicalKey: []byte("a")}
 	val := []byte("b")
 
 	// Rather than hardcode an arena size at just the right size, try
@@ -33,6 +33,6 @@ func TestNodeArenaEnd(t *testing.T) {
 			t.Log(i)
 			break
 		}
-		require.Equal(t, arena.ErrArenaFull, err)
+		require.ErrorIs(t, arena.ErrArenaFull, err)
 	}
 }
