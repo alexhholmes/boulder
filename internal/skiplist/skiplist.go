@@ -1,7 +1,6 @@
 package skiplist
 
 import (
-	"bytes"
 	"errors"
 	"math"
 	"unsafe"
@@ -381,7 +380,7 @@ func (s *Skiplist) findSpliceForLevel(
 
 		offset, size := next.keyOffset, next.keySize
 		nextKey := s.arena.Buf[offset : offset+size]
-		cmp := bytes.Compare(key.LogicalKey, nextKey)
+		cmp := s.cmp(key.LogicalKey, nextKey)
 		if cmp < 0 {
 			// We are done for this level, since prev.key < key < next.key.
 			break
@@ -408,7 +407,7 @@ func (s *Skiplist) findSpliceForLevel(
 
 func (s *Skiplist) keyIsAfterNode(nd *node, key base.InternalKey) bool {
 	ndKey := s.arena.Buf[nd.keyOffset : nd.keyOffset+nd.keySize]
-	cmp := bytes.Compare(ndKey, key.LogicalKey)
+	cmp := s.cmp(ndKey, key.LogicalKey)
 	if cmp < 0 {
 		return true
 	}
