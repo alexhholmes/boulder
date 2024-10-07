@@ -11,7 +11,6 @@ import (
 	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/internal/compare"
-	"boulder/internal/iterator"
 	"boulder/internal/skiplist"
 	"boulder/pkg/storage"
 	"boulder/pkg/wal"
@@ -120,8 +119,19 @@ func (m *MemTable) Add(kv base.InternalKV) error {
 	return nil
 }
 
+var (
+	// once is used to initialize the size of an empty skiplist arena
+	once         sync.Once
+	minimumBytes uint
+)
+
 func (m *MemTable) Empty() bool {
-	once.Do(calculateMinimumBytes)
+	once.Do(func() {
+		a := arena.NewArena(16 << 10 /* 16 KB */)
+		_ = skiplist.NewSkiplist(a)
+		minimumBytes = a.Len()
+	})
+
 	// Check if the underlying arena was released
 	if m.skiplist.Arena() == nil {
 		return true
@@ -178,7 +188,7 @@ var _ storage.Flusher = (*MemTable)(nil)
 // handle this because it needs to do extra bookkeeping for the manifest and the
 // active memtables. It also may provide additional options for the disk
 // operation rate limiting and priority.
-func (m *MemTable) Flush(flush func(iterator *iterator.Iterator)) {
+func (m *MemTable) Flush(flush storage.FlusherFunc) {
 	if m.readOnly.CompareAndSwap(false, true) {
 		go func() {
 			// Wait for all writers to finish before getting the flush iterator
@@ -189,16 +199,4 @@ func (m *MemTable) Flush(flush func(iterator *iterator.Iterator)) {
 			m.references.Add(-1)
 		}()
 	}
-}
-
-var (
-	// once is used to initialize the size of an empty skiplist arena.
-	once         sync.Once
-	minimumBytes uint
-)
-
-func calculateMinimumBytes() {
-	a := arena.NewArena(16 << 10 /* 16 KB */)
-	_ = skiplist.NewSkiplist(a)
-	minimumBytes = a.Len()
 }

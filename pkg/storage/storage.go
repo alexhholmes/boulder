@@ -32,3 +32,7 @@ package storage
 
 // The DB manifest will be used to manage when a file is open to use or being
 // used for writing, serving client reads, or compaction.
+
+type Manager struct {
+	flushing chan<- Flusher
+}

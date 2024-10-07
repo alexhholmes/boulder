@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 
 	"github.com/ncw/directio"
+
+	"boulder/internal/iterator"
 )
 
 type SSTable struct {
@@ -24,7 +26,7 @@ type footer struct {
 	format TableFormat
 }
 
-func New(filename string, id, level uint64, reader io.Reader) (*SSTable, error) {
+func New(filename string, id, level uint64, iterator iterator.Iterator) (*SSTable, error) {
 	// Open the file and write the contents of the reader to it
 	file, err := directio.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0755)
 	if err != nil {
