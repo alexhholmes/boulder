@@ -33,14 +33,18 @@ type MemTable struct {
 	// to an SSTable on disk.
 	wal *wal.WAL
 
-	// references tracks the number of readers or writers to the memtable. When
-	// the number of references drops to zero, the memtable can be safely
+	// references tracks the number of readers with reference to the memtable.
+	// When the number of references drops to zero, the memtable can be safely
 	// retired. The current DB memtable will always be incremented by one when
 	// it is active. Once the memtable has been flushed to disk, the reference
 	// count will be decremented by one. Once flushed, no new references will be
 	// added to the memtable, but this table will exist indefinitely until the
 	// referencing readers complete.
 	references arch.AtomicUint
+	// writers is the number of writers that are currently writing to the
+	// memtable. This is tracked to prevent the memtable from being flushed to
+	// disk while there are still active writers.
+	writers sync.WaitGroup
 	// readOnly indicates that the memtable is no longer accepting writes as it
 	// is full and is being flushed to disk.
 	readOnly atomic.Bool
@@ -85,11 +89,17 @@ func NewFromArena(a *arena.Arena, cmp compare.Compare) *MemTable {
 // all writes including set, delete, and single delete operations because the
 // trailer of a delete operation acts as a tombstone.
 func (m *MemTable) Add(kv base.InternalKV) error {
-	if m.readOnly.Load() {
-		return ErrMemtableFlushed
-	}
+	m.writers.Add(1)
+	defer m.writers.Done()
+
 	if kv.SeqNum() < m.seqNum {
 		return ErrInvalidSeqNum
+	}
+
+	// Add a check in case the memtable was flushed while when incrementing the
+	// writer count.
+	if m.readOnly.Load() {
+		return ErrMemtableFlushed
 	}
 
 	err := m.skiplist.Add(kv.K, kv.V)
@@ -168,6 +178,8 @@ var _ storage.Flusher = (*MemTable)(nil)
 func (m *MemTable) Flush(flush func(iterator *iterator.Iterator)) {
 	if m.readOnly.CompareAndSwap(false, true) {
 		go func() {
+			// Wait for all writers to finish before getting the flush iterator
+			m.writers.Wait()
 			// This flush operation will run independently of the DB goroutine
 			// and can be rate-limited or prioritized by the DB.
 			flush(m.skiplist.FlushIter())
