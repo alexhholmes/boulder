@@ -9,6 +9,7 @@ import (
 	"boulder/internal/arch"
 	"boulder/internal/arena"
 	"boulder/internal/base"
+	"boulder/internal/compare"
 	"boulder/internal/fastrand"
 	"boulder/internal/iterator"
 )
@@ -50,6 +51,7 @@ type Skiplist struct {
 	head   *node
 	tail   *node
 	height arch.AtomicUint // Current height. 1 <= height <= maxHeight. CAS.
+	cmp    compare.Compare
 }
 
 type splice struct {
@@ -73,8 +75,10 @@ func (ins *Inserter) Add(list *Skiplist, key base.InternalKey, value []byte) err
 
 // NewSkiplist constructs and initializes a new, empty skiplist. All nodes, keys,
 // and values in the skiplist will be allocated from the given arena.
-func NewSkiplist(arena *arena.Arena) *Skiplist {
-	skl := &Skiplist{}
+func NewSkiplist(arena *arena.Arena, cmp compare.Compare) *Skiplist {
+	skl := &Skiplist{
+		cmp: cmp,
+	}
 	skl.Reset(arena)
 	return skl
 }

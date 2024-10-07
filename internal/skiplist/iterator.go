@@ -44,23 +44,55 @@ func (it *Iterator) First() *base.InternalKV {
 	if it.nd == it.list.tail || it.nd == it.upperNode {
 		return nil
 	}
-
 	it.decodeKey()
-	// if it.upper != nil && it.list.cmp
-
-	return nil
+	if it.upper != nil && it.list.cmp(it.upper, it.kv.K.LogicalKey) <= 0 {
+		it.upperNode = it.nd
+		return nil
+	}
+	it.kv.V = it.nd.getValueBytes(it.list.arena) // TODO lazy value for internal KV
+	return &it.kv
 }
 
 func (it *Iterator) Last() *base.InternalKV {
-	return nil
+	it.nd = it.list.getPrev(it.list.tail, 0)
+	if it.nd == it.list.head || it.nd == it.lowerNode {
+		return nil
+	}
+	it.decodeKey()
+	if it.lower != nil && it.list.cmp(it.lower, it.kv.K.LogicalKey) > 0 {
+		it.lowerNode = it.nd
+		return nil
+	}
+	it.kv.V = it.nd.getValueBytes(it.list.arena) // TODO lazy value for internal KV
+	return &it.kv
 }
 
 func (it *Iterator) Next() *base.InternalKV {
-	return nil
+	it.nd = it.list.getNext(it.nd, 0)
+	if it.nd == it.list.tail || it.nd == it.upperNode {
+		return nil
+	}
+	it.decodeKey()
+	if it.upper != nil && it.list.cmp(it.upper, it.kv.K.LogicalKey) <= 0 {
+		it.upperNode = it.nd
+		return nil
+	}
+	it.kv.V = it.nd.getValueBytes(it.list.arena) // TODO lazy value for internal KV
+	return &it.kv
 }
 
 func (it *Iterator) Prev() *base.InternalKV {
-	return nil
+	it.nd = it.list.getPrev(it.nd, 0)
+	if it.nd == it.list.head || it.nd == it.lowerNode {
+		return nil
+	}
+	it.decodeKey()
+	if it.lower != nil && it.list.cmp(it.lower, it.kv.K.LogicalKey) > 0 {
+		it.lowerNode = it.nd
+		return nil
+	}
+	it.kv.V = it.nd.getValueBytes(it.list.arena) // TODO lazy value for internal KV
+	return &it.kv
 }
 
 func (it *Iterator) decodeKey() {
@@ -74,6 +106,8 @@ func (it *Iterator) Close() error {
 	return err
 }
 
+// FlushIterator is intended to be used by the memtable to iterate over the
+// skiplist in order to flush it to disk.
 type FlushIterator struct {
 	Iterator
 }

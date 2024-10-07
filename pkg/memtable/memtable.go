@@ -67,7 +67,7 @@ func New(size uint, wal *wal.WAL, cmp compare.Compare) *MemTable {
 	}
 
 	m := &MemTable{
-		skiplist: skiplist.NewSkiplist(arena.NewArena(size)),
+		skiplist: skiplist.NewSkiplist(arena.NewArena(size), cmp),
 		wal:      wal,
 		cmp:      cmp,
 	}
