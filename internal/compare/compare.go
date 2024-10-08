@@ -1,6 +1,8 @@
 package compare
 
-import "bytes"
+import (
+	"bytes"
+)
 
 type Compare func(a, b []byte) int
 

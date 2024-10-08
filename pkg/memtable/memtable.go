@@ -80,12 +80,13 @@ func New(size uint, wal *wal.WAL, cmp compare.Compare) *MemTable {
 	return m
 }
 
-// NewFromArena recycles an arena from a retired Memtable.
-func NewFromArena(a *arena.Arena, cmp compare.Compare) *MemTable {
+// NewArena recycles an arena from a retired Memtable.
+func NewArena(a *arena.Arena, wal *wal.WAL, cmp compare.Compare) *MemTable {
 	a.Reset()
 	return &MemTable{
 		skiplist: skiplist.NewSkiplist(a, cmp),
 		cmp:      cmp,
+		wal:      wal,
 	}
 }
 
@@ -101,7 +102,7 @@ func (m *MemTable) Add(kv base.InternalKV) error {
 	defer m.writers.Done()
 
 	if m.readOnly.Load() {
-		return ErrMemtableFlushed
+		return ErrFlushed
 	}
 
 	err := m.skiplist.Add(kv.K, kv.V)
@@ -109,7 +110,7 @@ func (m *MemTable) Add(kv base.InternalKV) error {
 		switch {
 		case errors.Is(err, skiplist.ErrArenaFull):
 			m.readOnly.Store(true)
-			return ErrMemtableFull
+			return ErrFull
 		case errors.Is(err, skiplist.ErrRecordExists):
 			// Duplicate key, caller should increment the sequence number
 			// and try again.
@@ -118,6 +119,10 @@ func (m *MemTable) Add(kv base.InternalKV) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (m *MemTable) Apply(batch interface{} /* TODO */) error {
 	return nil
 }
 
@@ -181,12 +186,20 @@ func (m *MemTable) IsActive() bool {
 // arena has already been released.
 func (m *MemTable) ReleaseArena() (*arena.Arena, error) {
 	if !m.IsActive() {
-		return nil, ErrMemtableActive
+		return nil, ErrActive
 	}
 
 	a := m.skiplist.Arena()
 	m.skiplist.Reset(nil)
 	return a, nil
+}
+
+func (m *MemTable) Close() error {
+	a, err := m.ReleaseArena()
+	if err != nil {
+		return err
+	}
+	return a.Close()
 }
 
 var _ storage.Flusher = (*MemTable)(nil)

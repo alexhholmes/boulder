@@ -35,7 +35,7 @@ func TestMemtableFull(t *testing.T) {
 		}
 	}
 
-	assert.ErrorIs(t, err, ErrMemtableFlushed)
+	assert.ErrorIs(t, err, ErrFlushed)
 }
 
 func TestRecordExistsError(t *testing.T) {

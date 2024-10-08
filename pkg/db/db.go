@@ -207,11 +207,11 @@ func (db *DB) Set(key, value []byte) error {
 	}
 	err := db.memtable.Add(kv)
 	if err != nil {
-		if errors.Is(err, memtable.ErrMemtableFlushed) {
+		if errors.Is(err, memtable.ErrFlushed) {
 			// TODO handle memtable flush replacement
 			return nil
 		}
-		if errors.Is(err, memtable.ErrMemtableFull) {
+		if errors.Is(err, memtable.ErrFull) {
 			// TODO handle memtable flush replacement
 		}
 		if errors.Is(err, memtable.ErrRecordExists) {
@@ -238,11 +238,11 @@ func (db *DB) Delete(key []byte) error {
 	}
 	err := db.memtable.Add(kv)
 	if err != nil {
-		if errors.Is(err, memtable.ErrMemtableFlushed) {
+		if errors.Is(err, memtable.ErrFlushed) {
 			// TODO handle memtable flush replacement
 			return nil
 		}
-		if errors.Is(err, memtable.ErrMemtableFull) {
+		if errors.Is(err, memtable.ErrFull) {
 			// TODO handle memtable flush replacement
 		}
 		if errors.Is(err, memtable.ErrRecordExists) {

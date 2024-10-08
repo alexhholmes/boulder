@@ -7,14 +7,6 @@ import (
 	"unsafe"
 )
 
-// alignment returns alignment of the block in memory
-// with reference to AlignSize
-//
-// Can't check alignment of a zero sized block as &block[0] is invalid
-func alignment(block []byte, AlignSize int) int {
-	return int(uintptr(unsafe.Pointer(&block[0])) & uintptr(AlignSize-1))
-}
-
 // IsAligned checks whether passed byte slice is aligned
 func IsAligned(block []byte) bool {
 	return alignment(block, AlignSize) == 0
@@ -40,4 +32,12 @@ func AlignedBlock(BlockSize int) []byte {
 		}
 	}
 	return block
+}
+
+// alignment returns alignment of the block in memory
+// with reference to AlignSize
+//
+// Can't check alignment of a zero sized block as &block[0] is invalid
+func alignment(block []byte, AlignSize int) int {
+	return int(uintptr(unsafe.Pointer(&block[0])) & uintptr(AlignSize-1))
 }

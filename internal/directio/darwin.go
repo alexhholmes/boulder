@@ -11,6 +11,7 @@ import (
 const (
 	AlignSize = 0
 	BlockSize = 4096
+	DirectIO  = true
 )
 
 func OpenFile(name string, flag int, perm os.FileMode) (file *os.File, err error) {
