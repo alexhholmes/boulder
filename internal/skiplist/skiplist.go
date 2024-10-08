@@ -10,7 +10,7 @@ import (
 	"boulder/internal/base"
 	"boulder/internal/compare"
 	"boulder/internal/fastrand"
-	"boulder/internal/iterator"
+	"boulder/pkg/iterator"
 )
 
 const (

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -12,7 +13,6 @@ import (
 
 	"boulder/internal/arena"
 	"boulder/internal/base"
-	"boulder/internal/compare"
 	"boulder/pkg/manifest"
 	"boulder/pkg/memtable"
 	"boulder/pkg/storage"
@@ -285,7 +285,7 @@ func (db *DB) RotateMemtable() error {
 	db.activeMemtables = append(db.activeMemtables, mem)
 	db.activeLatch.Unlock()
 
-	db.memtable = memtable.New(mem.Cap(), nil, compare.SimpleCompare)
+	db.memtable = memtable.New(mem.Cap(), nil, bytes.Compare)
 	db.flushing <- mem
 
 	return nil

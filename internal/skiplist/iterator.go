@@ -2,7 +2,7 @@ package skiplist
 
 import (
 	"boulder/internal/base"
-	"boulder/internal/iterator"
+	"boulder/pkg/iterator"
 )
 
 // Iterator is an iterator over the skiplist object. Use Skiplist.Iter

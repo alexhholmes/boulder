@@ -1,6 +1,8 @@
 package storage
 
-import "boulder/internal/iterator"
+import (
+	"boulder/pkg/iterator"
+)
 
 type FlusherFunc func(iterator iterator.Iterator)
 

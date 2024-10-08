@@ -8,7 +8,7 @@ import (
 
 	"github.com/ncw/directio"
 
-	"boulder/internal/iterator"
+	"boulder/pkg/iterator"
 )
 
 type SSTable struct {

@@ -11,8 +11,8 @@ import (
 	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/internal/compare"
-	"boulder/internal/iterator"
 	"boulder/internal/skiplist"
+	"boulder/pkg/iterator"
 	"boulder/pkg/storage"
 	"boulder/pkg/wal"
 )

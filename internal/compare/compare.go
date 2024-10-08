@@ -6,10 +6,6 @@ import (
 
 type Compare func(a, b []byte) int
 
-func SimpleCompare(a, b []byte) int {
-	return bytes.Compare(a, b)
-}
-
 func ReverseCompare(a, b []byte) int {
 	return bytes.Compare(b, a)
 }
