@@ -135,6 +135,8 @@ func (s *Skiplist) Reset() error {
 	s.head = head
 	s.tail = tail
 	s.height.Store(1)
+
+	return nil
 }
 
 // Arena returns the arena backing this skiplist.
@@ -357,7 +359,7 @@ func (s *Skiplist) findSpliceForLevel(
 		}
 
 		offset, size := next.keyOffset, next.keySize
-		nextKey := s.arena.buf[offset : offset+size]
+		nextKey := s.arena.GetBytes(offset, size)
 		cmp := s.cmp(key.LogicalKey, nextKey)
 		if cmp < 0 {
 			// We are done for this level, since prev.key < key < next.key.
@@ -439,7 +441,7 @@ func newNode(a *arena.Arena, height uint, key base.InternalKey, value []byte) (*
 	nd := (*node)(a.GetPointer(nodeOffset))
 	nd.keyOffset = nodeOffset + truncated
 	nd.keySize = keySize
-	nd.valueSize = valueSize
+	nd.valSize = valueSize
 
 	nd.keyTrailer = key.Trailer
 	copy(nd.getKey(a), key.LogicalKey)

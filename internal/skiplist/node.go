@@ -21,7 +21,7 @@ type node struct {
 	keyTrailer base.InternalKeyTrailer
 	keyOffset  uint
 	keySize    uint
-	valueSize  uint
+	valSize    uint
 
 	// Most nodes do not need to use the full height of the tower, since the
 	// probability of each successive level decreases exponentially. Because
@@ -38,7 +38,7 @@ func (n *node) getKey(arena *arena.Arena) []byte {
 }
 
 func (n *node) getValue(arena *arena.Arena) []byte {
-	return arena.GetBytes(n.keyOffset+n.keySize, n.valueSize)
+	return arena.GetBytes(n.keyOffset+n.keySize, n.valSize)
 }
 
 func (n *node) nextOffset(height int) uint {
