@@ -34,7 +34,7 @@ func New(size uint) *MemTable {
 	}
 
 	m := &MemTable{
-		skl: skiplist.New(arena.New(size), compare.SuffixCompare),
+		skl: skiplist.New(size, compare.SuffixCompare),
 		wal: nil,
 	}
 
@@ -42,12 +42,16 @@ func New(size uint) *MemTable {
 }
 
 // NewFromArena recycles an arena from a retired Memtable.
-func NewFromArena(a *arena.Arena) *MemTable {
-	a.Reset()
-	return &MemTable{
-		skl: skiplist.New(a, compare.SuffixCompare),
-		wal: nil,
+func NewFromArena(a *arena.Arena) (*MemTable, error) {
+	skl, err := skiplist.NewFromArena(a, compare.SuffixCompare)
+	if err != nil {
+		return nil, err
 	}
+
+	return &MemTable{
+		skl: skl,
+		wal: nil,
+	}, nil
 }
 
 // Insert puts an internal key-value pair into the memtable. This is used for
@@ -83,7 +87,7 @@ var (
 func (m *MemTable) Empty() bool {
 	onceEmpty.Do(func() {
 		a := arena.New(16 << 10 /* 16 KB */)
-		_ = skiplist.New(a, func(a, b []byte) int { return 0 })
+		_, _ = skiplist.NewFromArena(a, func(a, b []byte) int { return 0 })
 		minimumBytes = a.Len()
 	})
 

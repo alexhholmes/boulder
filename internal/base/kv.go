@@ -8,6 +8,7 @@ const (
 	InternalKeyKindSingleDelete
 	InternalKeyKindRangeKeySet
 	InternalKeyKindRangeKeyDelete
+
 	InternalKeyMask = 0xff
 )
 

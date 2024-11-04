@@ -45,7 +45,7 @@ func (it *Iterator) First() *base.InternalKV {
 		return nil
 	}
 	it.decodeKey()
-	if it.upper != nil && it.list.cmp(it.upper, it.kv.K.LogicalKey) <= 0 {
+	if it.upper != nil && it.list.compare(it.upper, it.kv.K.LogicalKey) <= 0 {
 		it.upperNode = it.nd
 		return nil
 	}
@@ -59,7 +59,7 @@ func (it *Iterator) Last() *base.InternalKV {
 		return nil
 	}
 	it.decodeKey()
-	if it.lower != nil && it.list.cmp(it.lower, it.kv.K.LogicalKey) > 0 {
+	if it.lower != nil && it.list.compare(it.lower, it.kv.K.LogicalKey) > 0 {
 		it.lowerNode = it.nd
 		return nil
 	}
@@ -73,7 +73,7 @@ func (it *Iterator) Next() *base.InternalKV {
 		return nil
 	}
 	it.decodeKey()
-	if it.upper != nil && it.list.cmp(it.upper, it.kv.K.LogicalKey) <= 0 {
+	if it.upper != nil && it.list.compare(it.upper, it.kv.K.LogicalKey) <= 0 {
 		it.upperNode = it.nd
 		return nil
 	}
@@ -87,7 +87,7 @@ func (it *Iterator) Prev() *base.InternalKV {
 		return nil
 	}
 	it.decodeKey()
-	if it.lower != nil && it.list.cmp(it.lower, it.kv.K.LogicalKey) > 0 {
+	if it.lower != nil && it.list.compare(it.lower, it.kv.K.LogicalKey) > 0 {
 		it.lowerNode = it.nd
 		return nil
 	}

@@ -6,10 +6,6 @@ import (
 
 type Compare func(a, b []byte) int
 
-func ReverseCompare(a, b []byte) int {
-	return bytes.Compare(b, a)
-}
-
 // SuffixCompare compares the suffix of a and b if the prefix of a and b are
 // equal. If the prefix of a and b are different, it returns the result of
 // bytes.Compare(a, b). This is because a base.InternalKey can have the same

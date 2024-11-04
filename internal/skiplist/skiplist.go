@@ -13,21 +13,21 @@ import (
 )
 
 const (
-	nodeSize      = uint(unsafe.Sizeof(node{}))
-	linksSize     = uint(unsafe.Sizeof(links{}))
-	maxHeight     = uint(20)
+	NodeAlignment = uint(unsafe.Sizeof(arch.UintToArchSize(0)))
+	NodeSize      = uint(unsafe.Sizeof(node{}))
+	LinkSize      = uint(unsafe.Sizeof(links{}))
+	MaxHeight     = uint(20)
 	pValue        = 1 / math.E
-	nodeAlignment = uint(unsafe.Sizeof(arch.UintToArchSize(0)))
 )
 
-var probabilities [maxHeight]uint32
+var probabilities [MaxHeight]uint32
 
 func init() {
 	// Precompute the skiplist probabilities so that only a single random number
 	// needs to be generated and so that the optimal pvalue can be used (inverse
 	// of Euler's number).
 	p := 1.0
-	for i := uint(0); i < maxHeight; i++ {
+	for i := uint(0); i < MaxHeight; i++ {
 		probabilities[i] = uint32(float64(math.MaxUint32) * p)
 		p *= pValue
 	}
@@ -39,15 +39,6 @@ var (
 	ErrRecordExists = errors.New("record with this key already exists")
 )
 
-type Inserter struct {
-	spl    [maxHeight]splice
-	height uint
-}
-
-func (ins *Inserter) Add(list *Skiplist, key base.InternalKey, value []byte) error {
-	return list.addInternal(key, value, ins)
-}
-
 // Skiplist is a fast, concurrent skiplist implementation that supports forward
 // and backward iteration. Keys and values are immutable once added to the skiplist
 // and deletion is not supported. Instead, higher-level code is expected to add new
@@ -55,29 +46,27 @@ func (ins *Inserter) Add(list *Skiplist, key base.InternalKey, value []byte) err
 // is up to the user to process these shadow entries and tombstones appropriately
 // during retrieval.
 type Skiplist struct {
-	arena  *arena.Arena
-	head   *node
-	tail   *node
-	height arch.AtomicUint // Current height. 1 <= height <= maxHeight. CAS.
-	cmp    compare.Compare
+	arena   *arena.Arena
+	head    *node
+	tail    *node
+	height  arch.AtomicUint // Current height. 1 <= height <= MaxHeight. CAS.
+	compare compare.Compare
 }
 
-// New constructs and initializes a new, empty skiplist. All nodes, keys, and
-// values in the skiplist will be allocated from the given arena.
-func New(size uint, cmp compare.Compare) *Skiplist {
+func New(size uint, compare compare.Compare) *Skiplist {
 	skl := &Skiplist{
-		cmp:   cmp,
-		arena: arena.WithOverflow(size, nodeSize),
+		compare: compare,
+		arena:   arena.WithOverflow(size, NodeSize),
 	}
 	_ = skl.Reset()
 
 	return skl
 }
 
-func NewFromArena(a *arena.Arena, cmp compare.Compare) (*Skiplist, error) {
+func NewFromArena(a *arena.Arena, compare compare.Compare) (*Skiplist, error) {
 	skl := &Skiplist{
-		cmp:   cmp,
-		arena: a,
+		compare: compare,
+		arena:   a,
 	}
 
 	err := skl.Reset()
@@ -88,46 +77,19 @@ func NewFromArena(a *arena.Arena, cmp compare.Compare) (*Skiplist, error) {
 	return skl, nil
 }
 
-// Reset the skiplist to empty and re-initialize.
 func (s *Skiplist) Reset() error {
 	if s.arena == nil {
 		return ErrNoBuffer
 	}
 	s.arena.Reset()
 
-	// Allocate head and tail nodes.
-	head, err := newNode(
-		s.arena,
-		maxHeight,
-		base.InternalKey{
-			LogicalKey: nil,
-			Trailer:    0,
-		},
-		[]byte{},
-	)
-	if err != nil {
-		panic("arenaSize is not large enough to hold the head node")
-	}
-	head.keyOffset = 0
+	head := s.newEmptyNode()
+	tail := s.newEmptyNode()
 
-	tail, err := newNode(
-		s.arena,
-		maxHeight,
-		base.InternalKey{
-			LogicalKey: nil,
-			Trailer:    0,
-		},
-		[]byte{},
-	)
-	if err != nil {
-		panic("arenaSize is not large enough to hold the tail node")
-	}
-	tail.keyOffset = 0
-
-	// Link all head/tail levels together.
+	// Link all head/tail levels together
 	headOffset := s.arena.GetPointerOffset(unsafe.Pointer(head))
 	tailOffset := s.arena.GetPointerOffset(unsafe.Pointer(tail))
-	for i := uint(0); i < maxHeight; i++ {
+	for i := uint(0); i < MaxHeight; i++ {
 		head.tower[i].next.Store(arch.UintToArchSize(tailOffset))
 		tail.tower[i].prev.Store(arch.UintToArchSize(headOffset))
 	}
@@ -139,32 +101,12 @@ func (s *Skiplist) Reset() error {
 	return nil
 }
 
-// Arena returns the arena backing this skiplist.
-func (s *Skiplist) Arena() *arena.Arena {
-	return s.arena
-}
-
-// Height returns the height of the highest tower within any of the nodes that
-// have ever been allocated as part of this skiplist.
-func (s *Skiplist) Height() uint {
-	return uint(s.height.Load())
-}
-
-// Size returns the number of bytes that have been allocated from the arena.
-func (s *Skiplist) Size() uint {
-	return s.arena.Len()
-}
-
 // Add adds a new key if it does not yet exist. If the key already exists, then
 // Add returns ErrRecordExists. If there isn't enough room in the arena, then
 // Add returns ErrBufferFull.
 func (s *Skiplist) Add(key base.InternalKey, value []byte) error {
-	var ins Inserter
-	return s.addInternal(key, value, &ins)
-}
-
-func (s *Skiplist) addInternal(key base.InternalKey, value []byte, ins *Inserter) error {
-	if s.findSplice(key, ins) {
+	var ins inserter
+	if s.findSplice(key, &ins) {
 		// Found a matching node, but handle case where it's been deleted.
 		return ErrRecordExists
 	}
@@ -182,8 +124,8 @@ func (s *Skiplist) addInternal(key base.InternalKey, value []byte, ins *Inserter
 	var found bool
 	var invalidateSplice bool
 	for i := 0; i < int(height); i++ {
-		prev := ins.spl[i].prev
-		next := ins.spl[i].next
+		prev := ins.splices[i].prev
+		next := ins.splices[i].next
 
 		if prev == nil {
 			// New node increased the height of the skiplist, so assume that the
@@ -261,32 +203,84 @@ func (s *Skiplist) addInternal(key base.InternalKey, value []byte, ins *Inserter
 	if invalidateSplice {
 		ins.height = 0
 	} else {
-		// The splice was valid. We inserted a node between spl[i].prev and
-		// spl[i].next. Optimistically update spl[i].prev for use in a subsequent
+		// The splice was valid. We inserted a node between splices[i].prev and
+		// splices[i].next. Optimistically update splices[i].prev for use in a subsequent
 		// call to add.
 		for i := uint(0); i < height; i++ {
-			ins.spl[i].prev = nd
+			ins.splices[i].prev = nd
 		}
 	}
 
 	return nil
 }
 
-func (s *Skiplist) newNode(key base.InternalKey, value []byte) (nd *node, height uint, err error) {
-	height = randomHeight()
-	nd, err = newNode(s.arena, height, key, value)
+// Height returns the height of the highest tower within any of the nodes that
+// have ever been allocated as part of this skiplist.
+func (s *Skiplist) Height() uint {
+	return uint(s.height.Load())
+}
+
+// Size returns the number of bytes that have been allocated from the arena.
+func (s *Skiplist) Size() uint {
+	return s.arena.Len()
+}
+
+// Arena returns the arena backing this skiplist.
+func (s *Skiplist) Arena() *arena.Arena {
+	return s.arena
+}
+
+func (s *Skiplist) newEmptyNode() *node {
+	nodeOffset, err := s.arena.Allocate(NodeSize, NodeAlignment)
 	if err != nil {
-		return
+		panic("arenaSize is not large enough to hold the head node")
 	}
 
-	// Try to increase s.height via CAS.
+	nd := (*node)(s.arena.GetPointer(nodeOffset))
+	nd.keyTrailer = 0
+	nd.keyOffset = 0
+	nd.keySize = 0
+	nd.valSize = 0
+
+	return nd
+}
+
+func (s *Skiplist) newNode(key base.InternalKey, value []byte) (nd *node, height uint, err error) {
+	rnd := fastrand.Uint32()
+
+	// Check with probability table to determine the height of this node
+	height = uint(1)
+	for height < MaxHeight && rnd <= probabilities[height] {
+		height++
+	}
+
+	keySize := uint(len(key.LogicalKey))
+	valueSize := uint(len(value))
+	truncated := NodeSize - (MaxHeight-height)*LinkSize
+	totalSize := truncated + keySize + valueSize
+
+	nodeOffset, err := s.arena.Allocate(totalSize, NodeAlignment)
+	if err != nil {
+		return nil, 0, ErrBufferFull
+	}
+
+	nd = (*node)(s.arena.GetPointer(nodeOffset))
+	nd.keyOffset = nodeOffset + truncated
+	nd.keySize = keySize
+	nd.valSize = valueSize
+
+	nd.keyTrailer = key.Trailer
+	copy(nd.getKey(s.arena), key.LogicalKey)
+	copy(nd.getValue(s.arena), value)
+
+	// Try to increase s.height via CAS
 	listHeight := s.Height()
 	for height > listHeight {
 		if s.height.CompareAndSwap(
 			arch.UintToArchSize(listHeight),
 			arch.UintToArchSize(height),
 		) {
-			// Successfully increased skiplist.height.
+			// Successfully increased skiplist.height
 			break
 		}
 
@@ -296,7 +290,7 @@ func (s *Skiplist) newNode(key base.InternalKey, value []byte) (nd *node, height
 	return
 }
 
-func (s *Skiplist) findSplice(key base.InternalKey, ins *Inserter) (found bool) {
+func (s *Skiplist) findSplice(key base.InternalKey, ins *inserter) (found bool) {
 	listHeight := s.Height()
 	var level int
 
@@ -310,7 +304,7 @@ func (s *Skiplist) findSplice(key base.InternalKey, ins *Inserter) (found bool) 
 	} else {
 		// Our cached height is equal to the list height.
 		for ; level < int(listHeight); level++ {
-			spl := &ins.spl[level]
+			spl := &ins.splices[level]
 			if s.getNext(spl.prev, level) != spl.next {
 				// One or more nodes have been inserted between the splice at this
 				// level.
@@ -338,8 +332,8 @@ func (s *Skiplist) findSplice(key base.InternalKey, ins *Inserter) (found bool) 
 		if next == nil {
 			next = s.tail
 		}
-		ins.spl[level].prev = prev
-		ins.spl[level].next = next
+		ins.splices[level].prev = prev
+		ins.splices[level].next = next
 	}
 
 	return
@@ -360,7 +354,7 @@ func (s *Skiplist) findSpliceForLevel(
 
 		offset, size := next.keyOffset, next.keySize
 		nextKey := s.arena.GetBytes(offset, size)
-		cmp := s.cmp(key.LogicalKey, nextKey)
+		cmp := s.compare(key.LogicalKey, nextKey)
 		if cmp < 0 {
 			// We are done for this level, since prev.key < key < next.key.
 			break
@@ -387,7 +381,7 @@ func (s *Skiplist) findSpliceForLevel(
 
 func (s *Skiplist) keyIsAfterNode(nd *node, key base.InternalKey) bool {
 	ndKey := s.arena.GetBytes(nd.keyOffset, nd.keySize)
-	cmp := s.cmp(ndKey, key.LogicalKey)
+	cmp := s.compare(ndKey, key.LogicalKey)
 	if cmp < 0 {
 		return true
 	}
@@ -410,42 +404,4 @@ func (s *Skiplist) getNext(nd *node, h int) *node {
 func (s *Skiplist) getPrev(nd *node, h int) *node {
 	offset := nd.tower[h].prev.Load()
 	return (*node)(s.arena.GetPointer(uint(offset)))
-}
-
-func randomHeight() uint {
-	rnd := fastrand.Uint32()
-
-	h := uint(1)
-	for h < maxHeight && rnd <= probabilities[h] {
-		h++
-	}
-
-	return h
-}
-
-func newNode(a *arena.Arena, height uint, key base.InternalKey, value []byte) (*node, error) {
-	if height < 1 || height > maxHeight {
-		panic("height cannot be less than one or greater than the max height")
-	}
-
-	keySize := uint(len(key.LogicalKey))
-	valueSize := uint(len(value))
-	truncated := nodeSize - (maxHeight-height)*linksSize
-	totalSize := truncated + keySize + valueSize
-
-	nodeOffset, err := a.Allocate(totalSize, nodeAlignment)
-	if err != nil {
-		return nil, err
-	}
-
-	nd := (*node)(a.GetPointer(nodeOffset))
-	nd.keyOffset = nodeOffset + truncated
-	nd.keySize = keySize
-	nd.valSize = valueSize
-
-	nd.keyTrailer = key.Trailer
-	copy(nd.getKey(a), key.LogicalKey)
-	copy(nd.getValue(a), value)
-
-	return nd, err
 }

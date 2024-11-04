@@ -6,6 +6,11 @@ import (
 	"boulder/internal/base"
 )
 
+type inserter struct {
+	splices [MaxHeight]splice
+	height  uint
+}
+
 type splice struct {
 	prev *node
 	next *node
@@ -30,7 +35,7 @@ type node struct {
 	// is deliberately truncated to not include unneeded tower elements.
 	//
 	// All accesses to elements should use CAS operations, with no need to lock.
-	tower [maxHeight]links
+	tower [MaxHeight]links
 }
 
 func (n *node) getKey(arena *arena.Arena) []byte {
