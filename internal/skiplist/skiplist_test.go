@@ -24,7 +24,7 @@ func TestNodeArenaEnd(t *testing.T) {
 	// successfully. The prior attempt will have exercised the right code
 	// path.
 	for i := uint(1); i < 256; i++ {
-		a := arena.NewArena(i)
+		a := arena.New(i)
 		_, err := newNode(a, 1, ikey, val)
 		if err == nil {
 			// We reached an arena size big enough to allocate a node.

@@ -49,7 +49,7 @@ func (it *Iterator) First() *base.InternalKV {
 		it.upperNode = it.nd
 		return nil
 	}
-	it.kv.V = it.nd.getValueBytes(it.list.arena) // TODO lazy value for internal KV
+	it.kv.V = it.nd.getValue(it.list.arena) // TODO lazy value for internal KV
 	return &it.kv
 }
 
@@ -63,7 +63,7 @@ func (it *Iterator) Last() *base.InternalKV {
 		it.lowerNode = it.nd
 		return nil
 	}
-	it.kv.V = it.nd.getValueBytes(it.list.arena) // TODO lazy value for internal KV
+	it.kv.V = it.nd.getValue(it.list.arena) // TODO lazy value for internal KV
 	return &it.kv
 }
 
@@ -77,7 +77,7 @@ func (it *Iterator) Next() *base.InternalKV {
 		it.upperNode = it.nd
 		return nil
 	}
-	it.kv.V = it.nd.getValueBytes(it.list.arena) // TODO lazy value for internal KV
+	it.kv.V = it.nd.getValue(it.list.arena) // TODO lazy value for internal KV
 	return &it.kv
 }
 
@@ -91,7 +91,7 @@ func (it *Iterator) Prev() *base.InternalKV {
 		it.lowerNode = it.nd
 		return nil
 	}
-	it.kv.V = it.nd.getValueBytes(it.list.arena) // TODO lazy value for internal KV
+	it.kv.V = it.nd.getValue(it.list.arena) // TODO lazy value for internal KV
 	return &it.kv
 }
 

@@ -6,23 +6,22 @@ import (
 	"boulder/internal/base"
 )
 
-type links struct {
-	nextOffset arch.AtomicUint
-	prevOffset arch.AtomicUint
+type splice struct {
+	prev *node
+	next *node
 }
 
-func (l *links) init(prevOffset, nextOffset uint) {
-	l.nextOffset.Store(arch.UintToArchSize(nextOffset))
-	l.prevOffset.Store(arch.UintToArchSize(prevOffset))
+type links struct {
+	next arch.AtomicUint
+	prev arch.AtomicUint
 }
 
 type node struct {
-	// Immutable fields, so no need to lock to access key.
+	// Immutable fields
+	keyTrailer base.InternalKeyTrailer
 	keyOffset  uint
 	keySize    uint
 	valueSize  uint
-	allocSize  uint
-	keyTrailer base.InternalKeyTrailer
 
 	// Most nodes do not need to use the full height of the tower, since the
 	// probability of each successive level decreases exponentially. Because
@@ -34,68 +33,26 @@ type node struct {
 	tower [maxHeight]links
 }
 
-func newNode(
-	a *arena.Arena, height uint, key base.InternalKey, value []byte,
-) (*node, error) {
-	if height < 1 || height > maxHeight {
-		panic("height cannot be less than one or greater than the max height")
-	}
-
-	keySize := uint(len(key.LogicalKey))
-	valueSize := uint(len(value))
-
-	nd, err := newRawNode(a, height, keySize, valueSize)
-	if err != nil {
-		return nil, err
-	}
-
-	nd.keyTrailer = key.Trailer
-	copy(nd.getKey(a), key.LogicalKey)
-	copy(nd.getValueBytes(a), value)
-
-	return nd, err
-}
-
-func newRawNode(a *arena.Arena, height, keySize, valueSize uint) (*node, error) {
-	// Compute the amount of the tower that will never be used, since the height
-	// is less than maxHeight.
-	unusedSize := (maxHeight - height) * linksSize
-	nodeSize := maxNodeSize - unusedSize
-
-	nodeOffset, allocSize, err := a.Allocate(nodeSize+keySize+valueSize, unusedSize, nodeAlignment)
-	if err != nil {
-		return nil, err
-	}
-
-	nd := (*node)(a.GetPointer(nodeOffset))
-	nd.keyOffset = nodeOffset + nodeSize
-	nd.keySize = keySize
-	nd.valueSize = valueSize
-	nd.allocSize = allocSize
-
-	return nd, nil
-}
-
 func (n *node) getKey(arena *arena.Arena) []byte {
 	return arena.GetBytes(n.keyOffset, n.keySize)
 }
 
-func (n *node) getValueBytes(arena *arena.Arena) []byte {
+func (n *node) getValue(arena *arena.Arena) []byte {
 	return arena.GetBytes(n.keyOffset+n.keySize, n.valueSize)
 }
 
-func (n *node) nextOffset(h int) uint {
-	return uint(n.tower[h].nextOffset.Load())
+func (n *node) nextOffset(height int) uint {
+	return uint(n.tower[height].next.Load())
 }
 
-func (n *node) prevOffset(h int) uint {
-	return uint(n.tower[h].prevOffset.Load())
+func (n *node) prevOffset(height int) uint {
+	return uint(n.tower[height].prev.Load())
 }
 
-func (n *node) casNextOffset(h int, old, val uint) bool {
-	return n.tower[h].nextOffset.CompareAndSwap(arch.UintToArchSize(old), arch.UintToArchSize(val))
+func (n *node) nextOffsetCAS(height int, old, val uint) bool {
+	return n.tower[height].next.CompareAndSwap(arch.UintToArchSize(old), arch.UintToArchSize(val))
 }
 
-func (n *node) casPrevOffset(h int, old, val uint) bool {
-	return n.tower[h].prevOffset.CompareAndSwap(arch.UintToArchSize(old), arch.UintToArchSize(val))
+func (n *node) prevOffsetCAS(height int, old, val uint) bool {
+	return n.tower[height].prev.CompareAndSwap(arch.UintToArchSize(old), arch.UintToArchSize(val))
 }

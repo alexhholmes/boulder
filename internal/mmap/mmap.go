@@ -5,7 +5,6 @@
 package mmap
 
 import (
-	"fmt"
 	"syscall"
 )
 
@@ -16,10 +15,10 @@ import (
 // will round the byte length up to a multiple of the system's page size.
 func New(size int) ([]byte, error) {
 	if size < 1 {
-		return nil, fmt.Errorf("mmap: invalid size; size must be greater than 0: %d", size)
+		panic("invalid mmap allocation size")
 	}
 
-	// Add `fd` to -1 because we are using `syscall.MAP_ANON`. This indicates
+	// Insert `fd` to -1 because we are using `syscall.MAP_ANON`. This indicates
 	// that there is no backing disk file.
 	data, err := syscall.Mmap(-1, 0, size,
 		syscall.PROT_READ|syscall.PROT_WRITE,

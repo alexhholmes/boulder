@@ -1,22 +1,17 @@
 package db
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
-	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/pkg/manifest"
 	"boulder/pkg/memtable"
-	"boulder/pkg/storage"
-	"boulder/pkg/wal"
 )
 
 const (
@@ -25,46 +20,32 @@ const (
 )
 
 type DB struct {
+	TransactionHandler
+
 	// mu protects the global database state. This is only held when memtables
 	// are being swapped along with the corresponding WAL.
-	mu sync.Mutex
-
-	name     string
-	session  string
-	openedAt time.Time
-	seqNum   base.AtomicSeqNum
+	mu     sync.Mutex
+	seqNum base.AtomicSeqNum
 
 	// memtable is a concurrent in-memory KV store for all writes to the
 	// database. The memtable is temporary, and once it is full, it is flushed
 	// to disk.
 	memtable *memtable.MemTable
-	// We keep track of the current wal so that we can update the manifest file
-	// when the memtable is rotated.
-	wal *wal.WAL
-	// activeMemtables is a list of memtables that are flushing or have been
-	// flushed to disk. These memtables are no longer accepting writes, but may
-	// still have reader references, thus are still potentially active. The DB
-	// will periodically check if these memtables are still active and then
-	// retire them and potentially recycle their arena.
-	activeLatch     sync.RWMutex
-	activeMemtables []*memtable.MemTable
-	// recycledArena is an atomic pointer to a used arena that can be used in
-	// the next memtable. This should be guaranteed to be reset by the caller of
-	// atomic.Pointer.Store().
-	recycledArena atomic.Pointer[arena.Arena]
-
-	// flushing is a channel that is used to pass any flushable items to a
-	// storage goroutine that will write the data to disk.
-	flushing chan<- storage.Flusher
-	storage  *storage.Manager
 
 	// manifest tracks all state changes to the database files. Each update to
 	// the manifest creates a new manifest file that is immediately flushed to
 	// disk. Depending on the DB configuration, a certain number of manifest
 	// file versions will be retained.
-	manifest      *manifest.Manifest
-	dataDirectory *os.File
-	walDirectory  *os.File
+	manifest *manifest.Manifest
+}
+
+type ReaderHandler func()
+
+type TransactionHandler struct {
+	state []int
+}
+
+type IteratorHandler struct {
 }
 
 // Open opens the database in read-write mode. If the database directory does
@@ -146,18 +127,6 @@ func OpenReadOnly(directory string, options ...Option) (db *DB, err error) {
 	panic("not implemented")
 }
 
-// OpenAndCleanup opens the database in read-write mode to clean up logs,
-// compact the database, and removes obsolete entries in the manifest file. Once
-// the cleanup operations complete, this function returns nil error, the
-// database is closed, and the directory file-lock is release.
-//
-// A database will typically run these operations sometime after Open, but this
-// function provides a blocking cleanup operation without opening the database
-// to read/write operations.
-func OpenAndCleanup(directory string, options ...Option) (err error) {
-	panic("not implemented")
-}
-
 // Close is a blocking call that will wait until all pending writes and
 // compactions are finished before safely closing the DB.
 func (db *DB) Close() error {
@@ -196,16 +165,12 @@ func (db *DB) Get(key []byte) (value []byte, err error) {
 // 	panic("not implemented")
 // }
 
-// func (db *DB) Apply(batch string) error {
-// 	panic("not implemented")
-// }
-
 func (db *DB) Set(key, value []byte) error {
 	kv := base.InternalKV{
 		K: base.MakeInternalKey(key, db.seqNum.Load(), base.InternalKeyKindSet),
 		V: value,
 	}
-	err := db.memtable.Add(kv)
+	err := db.memtable.Insert(kv)
 	if err != nil {
 		if errors.Is(err, memtable.ErrFlushed) {
 			// TODO handle memtable flush replacement
@@ -227,16 +192,16 @@ func (db *DB) Set(key, value []byte) error {
 	return nil
 }
 
-// func (db *DB) RangeKeySet(key, value []byte) error {
-// 	panic("not implemented")
-// }
+func (db *DB) RangeKeySet(keyStart, keyEnd, value []byte) error {
+	panic("not implemented")
+}
 
 func (db *DB) Delete(key []byte) error {
 	kv := base.InternalKV{
 		K: base.MakeInternalKey(key, db.seqNum.Load(), base.InternalKeyKindDelete),
 		V: nil,
 	}
-	err := db.memtable.Add(kv)
+	err := db.memtable.Insert(kv)
 	if err != nil {
 		if errors.Is(err, memtable.ErrFlushed) {
 			// TODO handle memtable flush replacement
@@ -258,35 +223,14 @@ func (db *DB) Delete(key []byte) error {
 	return nil
 }
 
-// func (db *DB) SingleDelete(key []byte) error {
-// 	panic("not implemented")
-// }
-//
-// func (db *DB) RangeKeyDelete(start, end []byte) error {
-// 	panic("not implemented")
-// }
-//
-// func (db *DB) NewSnapshot() error {
-// 	panic("not implemented")
-// }
+func (db *DB) RangeKeyDelete(start, end []byte) error {
+	panic("not implemented")
+}
 
-func (db *DB) RotateMemtable() error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
+func (db *DB) NewSnapshot() error {
+	panic("not implemented")
+}
 
-	if db.memtable.IsActive() {
-		// Another goroutine already rotated the memtable
-		return nil
-	}
-
-	mem := db.memtable
-
-	db.activeLatch.Lock()
-	db.activeMemtables = append(db.activeMemtables, mem)
-	db.activeLatch.Unlock()
-
-	db.memtable = memtable.New(mem.Cap(), nil, bytes.Compare)
-	db.flushing <- mem
-
+func (db *DB) FlushMemtable() error {
 	return nil
 }

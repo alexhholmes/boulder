@@ -29,7 +29,7 @@ func TestMemtableFull(t *testing.T) {
 		}
 
 		t.Logf("Adding key %d", i)
-		err = memtable.Add(kv)
+		err = memtable.Insert(kv)
 		if err != nil {
 			break
 		}
@@ -54,10 +54,10 @@ func TestRecordExistsError(t *testing.T) {
 		V: []byte{1, 0, 1, 0, 1, 0, 1},
 	}
 
-	err := memtable.Add(kv)
+	err := memtable.Insert(kv)
 	assert.NoError(t, err)
 
-	err = memtable.Add(kv)
+	err = memtable.Insert(kv)
 	assert.ErrorIs(t, err, ErrRecordExists)
 }
 
@@ -79,7 +79,7 @@ func TestEmptyMemtable(t *testing.T) {
 		V: []byte{},
 	}
 
-	err := memtable.Add(kv)
+	err := memtable.Insert(kv)
 	assert.NoError(t, err)
 	assert.False(t, memtable.Empty())
 

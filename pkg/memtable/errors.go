@@ -1,6 +1,8 @@
 package memtable
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
 	// ErrActive indicates that the memtable is still has active references.

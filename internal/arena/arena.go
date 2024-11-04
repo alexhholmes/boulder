@@ -2,6 +2,7 @@ package arena
 
 import (
 	"errors"
+	"sync"
 	"unsafe"
 
 	"boulder/internal/arch"
@@ -10,58 +11,64 @@ import (
 
 var ErrArenaFull = errors.New("allocation failed because arena is full")
 
-// Arena is a lock-free arena allocator.
+// Arena is arena lock-free arena allocator.
 type Arena struct {
-	n       arch.AtomicUint
-	Buf     []byte
-	mmapped bool
+	position arch.AtomicUint
+	buffer   []byte
+	overflow uint
+	mmapped  bool
+	closed   sync.Once
 }
 
-// NewArena allocates a new arena using the specified buffer as the backing
+// New allocates arena new arena using the specified buffer as the backing
 // store. The caller should ensure that the buffer is not modified for the
 // lifetime of the arena.
-func NewArena(size uint) *Arena {
+func New(size uint) *Arena {
 	a := &Arena{
 		mmapped: true,
 	}
 
-	// We don't store data at position 0 to reserve offset=0 as a nil pointer
-	// and to simplify the index arithmetic.
-	a.n.Store(1)
+	// Position/offset 0 is reserved as the arena's nil pointer
+	a.position.Store(1)
 
 	buf, err := mmap.New(int(size))
 	if err != nil {
 		buf = make([]byte, size)
 		a.mmapped = false
 	}
-	a.Buf = buf
+	a.buffer = buf
 
 	return a
 }
 
-func (a *Arena) Allocate(size, overflow, alignment uint) (
-	offset,
-	padded uint,
-	err error,
-) {
+// WithOverflow provides extra space at the end of buffer where if an arena is
+// "full", then any pointer that is cast to a type that goes a bit beyond the
+// allocation will not cause an out of bounds of the backing slice.
+func WithOverflow(size, overflow uint) *Arena {
+	a := New(size + overflow)
+	a.overflow = overflow
+	return a
+}
+
+func (a *Arena) Allocate(size, alignment uint) (offset uint, err error) {
 	// Verify that the arena isn't already full
-	originalSize := a.n.Load()
-	if uint(originalSize) > uint(len(a.Buf)) {
-		return 0, 0, ErrArenaFull
+	position := uint(a.position.Load())
+	if position > uint(len(a.buffer))-a.overflow {
+		return 0, ErrArenaFull
 	}
 
 	// Pad the allocation with enough bytes to ensure the requested alignment
-	padded = size + alignment - 1
+	padded := size + alignment - 1
 
-	newSize := uint(a.n.Add(arch.UintToArchSize(padded)))
-	if newSize+overflow > uint(len(a.Buf)) {
-		// Double check that the arena isn't full after calculating the new size
-		return 0, 0, ErrArenaFull
+	// Check if arena is full after allocating
+	position = uint(a.position.Add(arch.UintToArchSize(padded)))
+	if position > uint(len(a.buffer))-a.overflow {
+		return 0, ErrArenaFull
 	}
 
 	// Return the aligned offset
-	offset = (newSize - padded + alignment) & ^(alignment - 1)
-	return offset, padded, nil
+	offset = (position - padded + alignment) & ^(alignment - 1)
+	return offset, nil
 }
 
 func (a *Arena) GetBytes(offset uint, size uint) []byte {
@@ -69,9 +76,9 @@ func (a *Arena) GetBytes(offset uint, size uint) []byte {
 		return nil
 	}
 
-	// Return a slice with capacity equal to the size of the allocation so
+	// Return arena slice with capacity equal to the size of the allocation so
 	// that the caller can't overwrite past the end of the allocation.
-	return a.Buf[offset : offset+size : offset+size]
+	return a.buffer[offset : offset+size : offset+size]
 }
 
 func (a *Arena) GetPointer(offset uint) unsafe.Pointer {
@@ -79,7 +86,7 @@ func (a *Arena) GetPointer(offset uint) unsafe.Pointer {
 		return nil
 	}
 
-	return unsafe.Pointer(&a.Buf[offset])
+	return unsafe.Pointer(&a.buffer[offset])
 }
 
 func (a *Arena) GetPointerOffset(ptr unsafe.Pointer) uint {
@@ -87,30 +94,28 @@ func (a *Arena) GetPointerOffset(ptr unsafe.Pointer) uint {
 		return 0
 	}
 
-	return uint(uintptr(ptr) - uintptr(unsafe.Pointer(&a.Buf[0])))
+	return uint(uintptr(ptr) - uintptr(unsafe.Pointer(&a.buffer[0])))
 }
 
-// Len returns the number of bytes allocated by the arena, including the
-// reserved 0th byte and padding.
 func (a *Arena) Len() uint {
-	s := a.n.Load()
-	return uint(s)
+	s := a.position.Load()
+	return uint(s) - 1
 }
 
-// Cap returns the length of the underlying buffer.
 func (a *Arena) Cap() uint {
-	return uint(len(a.Buf))
+	return uint(len(a.buffer)) - a.overflow - 1
 }
 
-// Reset sets the arena size to 1, without overwriting the old buffer data.
 func (a *Arena) Reset() {
-	a.n.Store(1)
+	a.position.Store(1)
 }
 
-// Close must be called when an arena is no longer used.
 func (a *Arena) Close() error {
-	if a.mmapped {
-		return mmap.Free(a.Buf)
-	}
-	return nil
+	var err error
+	a.closed.Do(func() {
+		if a.mmapped {
+			err = mmap.Free(a.buffer)
+		}
+	})
+	return err
 }
