@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/ncw/directio"
+	"boulder/internal/directio"
 )
 
 type Option func(*Writer)

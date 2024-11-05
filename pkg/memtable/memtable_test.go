@@ -3,11 +3,11 @@ package memtable
 import (
 	"testing"
 
-	"github.com/ncw/directio"
 	"github.com/stretchr/testify/assert"
 
 	"boulder/internal/base"
 	"boulder/internal/compare"
+	"boulder/internal/directio"
 )
 
 func TestMemtableFull(t *testing.T) {

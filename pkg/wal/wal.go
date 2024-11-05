@@ -3,7 +3,7 @@ package wal
 import (
 	"os"
 
-	"github.com/ncw/directio"
+	"boulder/internal/directio"
 )
 
 // WAL (write-ahead log) stores all the changes made to a specific memtable.
