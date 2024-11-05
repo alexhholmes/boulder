@@ -4,11 +4,10 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/ncw/directio"
-
 	"boulder/internal/arena"
 	"boulder/internal/base"
 	"boulder/internal/compare"
+	"boulder/internal/directio"
 	"boulder/internal/skiplist"
 	"boulder/pkg/wal"
 )
@@ -88,7 +87,7 @@ func (m *MemTable) Empty() bool {
 	onceEmpty.Do(func() {
 		a := arena.New(16 << 10 /* 16 KB */)
 		_, _ = skiplist.NewFromArena(a, func(a, b []byte) int { return 0 })
-		minimumBytes = a.Len()
+		minimumBytes = a.Size()
 	})
 
 	// Check if the underlying arena was released

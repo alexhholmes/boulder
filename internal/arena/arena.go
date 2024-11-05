@@ -97,7 +97,7 @@ func (a *Arena) GetPointerOffset(ptr unsafe.Pointer) uint {
 	return uint(uintptr(ptr) - uintptr(unsafe.Pointer(&a.buffer[0])))
 }
 
-func (a *Arena) Len() uint {
+func (a *Arena) Size() uint {
 	s := a.position.Load()
 	return uint(s) - 1
 }

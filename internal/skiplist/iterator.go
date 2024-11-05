@@ -10,7 +10,7 @@ import (
 // simply value copying the struct. All iterator methods are thread-safe.
 type Iterator struct {
 	list  *Skiplist
-	nd    *node
+	node  *node
 	kv    base.InternalKV
 	lower []byte
 	upper []byte
@@ -40,64 +40,64 @@ type Iterator struct {
 var _ iterator.Iterator = (*Iterator)(nil)
 
 func (it *Iterator) First() *base.InternalKV {
-	it.nd = it.list.getNext(it.list.head, 0)
-	if it.nd == it.list.tail || it.nd == it.upperNode {
+	it.node = it.list.getNext(it.list.head, 0)
+	if it.node == it.list.tail || it.node == it.upperNode {
 		return nil
 	}
 	it.decodeKey()
 	if it.upper != nil && it.list.compare(it.upper, it.kv.K.LogicalKey) <= 0 {
-		it.upperNode = it.nd
+		it.upperNode = it.node
 		return nil
 	}
-	it.kv.V = it.nd.getValue(it.list.arena) // TODO lazy value for internal KV
+	it.kv.V = it.node.getValue(it.list.arena) // TODO lazy value for internal KV
 	return &it.kv
 }
 
 func (it *Iterator) Last() *base.InternalKV {
-	it.nd = it.list.getPrev(it.list.tail, 0)
-	if it.nd == it.list.head || it.nd == it.lowerNode {
+	it.node = it.list.getPrev(it.list.tail, 0)
+	if it.node == it.list.head || it.node == it.lowerNode {
 		return nil
 	}
 	it.decodeKey()
 	if it.lower != nil && it.list.compare(it.lower, it.kv.K.LogicalKey) > 0 {
-		it.lowerNode = it.nd
+		it.lowerNode = it.node
 		return nil
 	}
-	it.kv.V = it.nd.getValue(it.list.arena) // TODO lazy value for internal KV
+	it.kv.V = it.node.getValue(it.list.arena) // TODO lazy value for internal KV
 	return &it.kv
 }
 
 func (it *Iterator) Next() *base.InternalKV {
-	it.nd = it.list.getNext(it.nd, 0)
-	if it.nd == it.list.tail || it.nd == it.upperNode {
+	it.node = it.list.getNext(it.node, 0)
+	if it.node == it.list.tail || it.node == it.upperNode {
 		return nil
 	}
 	it.decodeKey()
 	if it.upper != nil && it.list.compare(it.upper, it.kv.K.LogicalKey) <= 0 {
-		it.upperNode = it.nd
+		it.upperNode = it.node
 		return nil
 	}
-	it.kv.V = it.nd.getValue(it.list.arena) // TODO lazy value for internal KV
+	it.kv.V = it.node.getValue(it.list.arena) // TODO lazy value for internal KV
 	return &it.kv
 }
 
 func (it *Iterator) Prev() *base.InternalKV {
-	it.nd = it.list.getPrev(it.nd, 0)
-	if it.nd == it.list.head || it.nd == it.lowerNode {
+	it.node = it.list.getPrev(it.node, 0)
+	if it.node == it.list.head || it.node == it.lowerNode {
 		return nil
 	}
 	it.decodeKey()
 	if it.lower != nil && it.list.compare(it.lower, it.kv.K.LogicalKey) > 0 {
-		it.lowerNode = it.nd
+		it.lowerNode = it.node
 		return nil
 	}
-	it.kv.V = it.nd.getValue(it.list.arena) // TODO lazy value for internal KV
+	it.kv.V = it.node.getValue(it.list.arena) // TODO lazy value for internal KV
 	return &it.kv
 }
 
 func (it *Iterator) decodeKey() {
-	it.kv.K.LogicalKey = it.list.arena.GetBytes(it.nd.keyOffset, it.nd.keySize)
-	it.kv.K.Trailer = it.nd.keyTrailer
+	it.kv.K.LogicalKey = it.list.arena.GetBytes(it.node.keyOffset, it.node.keySize)
+	it.kv.K.Trailer = it.node.keyTrailer
 }
 
 func (it *Iterator) Close() error {
@@ -123,8 +123,8 @@ func (fl *FlushIterator) Last() *base.InternalKV {
 }
 
 func (fl *FlushIterator) Next() *base.InternalKV {
-	fl.nd = fl.list.getNext(fl.nd, 0)
-	if fl.nd == fl.list.tail {
+	fl.node = fl.list.getNext(fl.node, 0)
+	if fl.node == fl.list.tail {
 		return nil
 	}
 	fl.decodeKey()

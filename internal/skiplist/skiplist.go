@@ -139,7 +139,7 @@ func (s *Skiplist) Add(key base.InternalKey, value []byte) error {
 		}
 
 		// +----------------+     +------------+     +----------------+
-		// |      prev      |     |     nd     |     |      next      |
+		// |      prev      |     |     node     |     |      next      |
 		// | prevNextOffset |---->|            |     |                |
 		// |                |<----| prev |     |                |
 		// |                |     | next |---->|                |
@@ -147,8 +147,8 @@ func (s *Skiplist) Add(key base.InternalKey, value []byte) error {
 		// +----------------+     +------------+     +----------------+
 		//
 		// 1. Initialize prev and next to point to prev and next.
-		// 2. CAS prevNextOffset to repoint from next to nd.
-		// 3. CAS nextPrevOffset to repoint from prev to nd.
+		// 2. CAS prevNextOffset to repoint from next to node.
+		// 3. CAS nextPrevOffset to repoint from prev to node.
 		for {
 			prevOffset := s.arena.GetPointerOffset(unsafe.Pointer(prev))
 			nextOffset := s.arena.GetPointerOffset(unsafe.Pointer(next))
@@ -176,7 +176,7 @@ func (s *Skiplist) Add(key base.InternalKey, value []byte) error {
 			}
 
 			if prev.nextOffsetCAS(i, nextOffset, ndOffset) {
-				// Managed to insert nd between prev and next, so update the next
+				// Managed to insert node between prev and next, so update the next
 				// node's prev link and go to the next level.
 				next.prevOffsetCAS(i, prevOffset, ndOffset)
 				break
@@ -222,7 +222,7 @@ func (s *Skiplist) Height() uint {
 
 // Size returns the number of bytes that have been allocated from the arena.
 func (s *Skiplist) Size() uint {
-	return s.arena.Len()
+	return s.arena.Size()
 }
 
 // Arena returns the arena backing this skiplist.
