@@ -17,7 +17,7 @@ const (
 	NodeSize      = uint(unsafe.Sizeof(node{}))
 	LinkSize      = uint(unsafe.Sizeof(links{}))
 	MaxHeight     = uint(20)
-	pValue        = 1 / math.E
+	P             = 1 / math.E
 )
 
 var probabilities [MaxHeight]uint32
@@ -29,7 +29,7 @@ func init() {
 	p := 1.0
 	for i := uint(0); i < MaxHeight; i++ {
 		probabilities[i] = uint32(float64(math.MaxUint32) * p)
-		p *= pValue
+		p *= P
 	}
 }
 
@@ -218,11 +218,6 @@ func (s *Skiplist) Add(key base.InternalKey, value []byte) error {
 // have ever been allocated as part of this skiplist.
 func (s *Skiplist) Height() uint {
 	return uint(s.height.Load())
-}
-
-// Size returns the number of bytes that have been allocated from the arena.
-func (s *Skiplist) Size() uint {
-	return s.arena.Size()
 }
 
 // Arena returns the arena backing this skiplist.

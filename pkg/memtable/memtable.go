@@ -2,6 +2,7 @@ package memtable
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"boulder/internal/arena"
@@ -90,27 +91,21 @@ func (m *MemTable) Empty() bool {
 		minimumBytes = a.Size()
 	})
 
+	fmt.Printf("helloworld")
+
 	// Check if the underlying arena was released
 	if m.skl.Arena() == nil {
 		return true
 	}
 
-	return m.skl.Size() == minimumBytes
+	return m.skl.Arena().Size() == minimumBytes
 }
 
 func (m *MemTable) Size() uint {
-	// Check if the underlying arena was released
-	if m.skl.Arena() == nil {
-		return 0
-	}
-	return m.skl.Size()
+	return m.skl.Arena().Size()
 }
 
 func (m *MemTable) Cap() uint {
-	// Check if the underlying arena was released
-	if m.skl.Arena() == nil {
-		return 0
-	}
 	return m.skl.Arena().Cap()
 }
 
