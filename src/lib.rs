@@ -11,3 +11,5 @@ mod manifest;
 mod compact;
 mod transaction;
 mod batch;
+mod bytes;
+mod db;

@@ -1,5 +1,5 @@
 use std::marker::ConstParamTy;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use bytes::Bytes;
 
 #[derive(Clone, ConstParamTy, Debug, Eq, PartialEq)]
@@ -17,7 +17,7 @@ pub enum BatchType {
 /// ```
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     use crate::{Batch, DB};
-/// 
+///
 ///     let db = DB::open("batch_db")?;
 ///
 ///     let mut batch = Batch::read();
@@ -33,7 +33,7 @@ pub enum BatchType {
 ///     batch.remove("key_0");
 ///     batch.insert("key_2", "val_2");
 ///     db.apply_batch(batch)?;
-///     
+///
 ///     Ok(())
 /// }
 /// ```
@@ -41,30 +41,28 @@ pub struct Batch<const T: BatchType> {
     pub(crate) items: BTreeMap<Bytes, Option<Bytes>>,
 }
 
-impl<const T: BatchType> Batch<T> {
+impl Batch<{ BatchType::Read }> {
     pub fn read() -> Batch<{ BatchType::Read }> {
         Batch {
             items: BTreeMap::new(),
         }
     }
+    
+    pub fn get<K>(&mut self, key: K)
+    where
+        K: AsRef<[u8]>,
+    {
+        self.items.insert(Bytes::copy_from_slice(key.as_ref()), None);
+    }
+}
 
+impl Batch<{ BatchType::Write }> {
     pub fn write() -> Batch<{ BatchType::Write }> {
         Batch {
             items: BTreeMap::new(),
         }
     }
-}
-
-impl Batch<{ BatchType::Read }> {
-    pub fn get<K>(&mut self, key: K)
-    where
-        K: AsRef<[u8]>,
-    {
-        self.items.insert(key, None);
-    }
-}
-
-impl Batch<{ BatchType::Write }> {
+    
     pub fn insert<K, V>(&mut self, key: K, value: V)
     where
         K: Into<Bytes>,
