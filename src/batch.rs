@@ -1,16 +1,58 @@
 use std::marker::ConstParamTy;
 use std::collections::{BTreeMap, BTreeSet};
-
 use bytes::Bytes;
 
-#[derive(ConstParamTy, Eq, PartialEq)]
+#[derive(Clone, ConstParamTy, Debug, Eq, PartialEq)]
 pub enum BatchType {
     Read,
     Write,
 }
 
+/// A batch of updates that are applied atomically to the database. A batch is
+/// either a `Read` or a `Write`. `Write` batches will mutate the database.
+/// Recurrent keys will overwrite previous writes and result in a single
+/// returned item for reads.
+///
+/// # Examples
+/// ```
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     use crate::{Batch, DB};
+/// 
+///     let db = DB::open("batch_db")?;
+///
+///     let mut batch = Batch::read();
+///     batch.read("key_0");
+///     batch.read("key_1");
+///     batch.read("key_2");
+///     batch.read("key_3");
+///     db.apply_batch(batch)?;
+///
+///     let mut batch = Batch::write();
+///     batch.insert("key_0", "val_0");
+///     batch.insert("key_1", "val_1");
+///     batch.remove("key_0");
+///     batch.insert("key_2", "val_2");
+///     db.apply_batch(batch)?;
+///     
+///     Ok(())
+/// }
+/// ```
 pub struct Batch<const T: BatchType> {
-    items: BTreeMap<Bytes, Option<Bytes>>,
+    pub(crate) items: BTreeMap<Bytes, Option<Bytes>>,
+}
+
+impl<const T: BatchType> Batch<T> {
+    pub fn read() -> Batch<{ BatchType::Read }> {
+        Batch {
+            items: BTreeMap::new(),
+        }
+    }
+
+    pub fn write() -> Batch<{ BatchType::Write }> {
+        Batch {
+            items: BTreeMap::new(),
+        }
+    }
 }
 
 impl Batch<{ BatchType::Read }> {
@@ -18,7 +60,7 @@ impl Batch<{ BatchType::Read }> {
     where
         K: AsRef<[u8]>,
     {
-        self.items.insert(key.into(), None);
+        self.items.insert(key, None);
     }
 }
 
