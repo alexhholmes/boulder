@@ -10,8 +10,8 @@ pub enum BatchType {
 
 /// A batch of updates that are applied atomically to the database. A batch is
 /// either a `Read` or a `Write`. `Write` batches will mutate the database.
-/// Recurrent keys will overwrite previous writes and result in a single
-/// returned item for reads.
+/// Recurrent keys will overwrite previous writes for that key and result in a 
+/// single copy of that key's value.
 ///
 /// # Examples
 /// ```
