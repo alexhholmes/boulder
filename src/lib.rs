@@ -1,31 +1,13 @@
-mod tree;
+#![feature(adt_const_params)]
+#![allow(incomplete_features)]
 
-use std::ops::Deref;
-use std::sync::Arc;
-use crate::tree::{MemTable, MemTableInner};
-
-pub struct DB {
-    tree: Arc<MemTable>,
-}
-
-impl DB {
-    pub fn open() -> Self {
-        DB {
-            tree: Arc::new(MemTable::new())
-        }
-    }
-}
-
-impl Deref for DB {
-    type Target = MemTableInner;
-
-    fn deref(&self) -> &Self::Target {
-        &self.tree
-    }
-}
-
-impl Drop for DB {
-    fn drop(&mut self) {
-        todo!()
-    }
-}
+pub mod iterator;
+mod key;
+mod mem_table;
+mod wal;
+mod disk_table;
+mod block;
+mod manifest;
+mod compact;
+mod transaction;
+mod batch;
